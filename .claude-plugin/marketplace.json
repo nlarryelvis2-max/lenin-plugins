@@ -1,0 +1,15 @@
+{
+  "name": "lenin",
+  "owner": { "name": "Phil (miheevfil)" },
+  "metadata": {
+    "description": "Маркетплейс плагинов экосистемы Ленин: поведение ядра, распространяемое отдельно от данных владельца",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "lenin-uplink",
+      "source": "./lenin-uplink",
+      "description": "Ежедневная централизация сессионных файлов Claude Code на сервер Ленина (protocol lenin-uplink/1)"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "description": "lenin-uplink: при заходе в Ленин — если последний успешный аплинк >24ч, запустить фоновый прогон",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/session_uplink_check.py\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}
