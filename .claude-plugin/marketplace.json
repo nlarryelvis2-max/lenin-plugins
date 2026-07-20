@@ -1,6 +1,6 @@
 {
   "name": "lenin",
-  "owner": { "name": "Phil (miheevfil)" },
+  "owner": { "name": "lenin-ecosystem" },
   "metadata": {
     "description": "Маркетплейс плагинов экосистемы Ленин: поведение ядра, распространяемое отдельно от данных владельца",
     "version": "1.0.0"
