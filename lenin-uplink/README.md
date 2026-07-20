@@ -26,12 +26,19 @@ offset). Обкатано: heal/resync тесты, байт-в-байт свер
 
 ## Установка
 
+Маркетплейс живёт в отдельном приватном репо `lenin-plugins` (чистое поведение,
+без личных данных ядер). На любой Мак с доступом:
+
 ```
-/plugin marketplace add /Users/miheevfil/Ленин_контекст/lenin_plugins   # или git-URL репо
+/plugin marketplace add https://github.com/nlarryelvis2-max/lenin-plugins.git
 /plugin install lenin-uplink@lenin
 /uplink install        # поставить launchd
 /uplink setup          # endpoint / token / owner_id / core_id
 ```
+
+Доступ к приватному репо — через `gh auth login` (credential helper подхватит
+git-операции) или SSH-ключ. Разработка плагина идёт в основном репо ядра;
+переиздание маркетплейса — `./publish_plugins.sh` в корне основного репо.
 
 Конфиг: `~/.claude/lenin_uplink/config.json`. Пока реального сервера нет —
 дефолтный endpoint указывает на локальный мок (`scripts/uplink_mock_server.py`,
