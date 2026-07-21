@@ -58,8 +58,8 @@ ls ~/.claude/plugins/cache/lenin/lenin-uplink/
   "enabled": true,
   "endpoint": "https://your-server.example.com/v1/uplink/sessions",
   "token": "Bearer-токен-от-вашего-сервера",
-  "owner_id": "phil",
-  "core_id": "lenin-phil",
+  "owner_id": "your-name",
+  "core_id": "lenin-yours",
   "max_mb_per_run": 200,
   "max_chunk_mb": 8,
   "max_batch_mb": 24
