@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""revoke.py — отозвать привязку устройства к платформе (right to erasure).
+"""Отключить устройство и отозвать его Uplink-токен.
 
-POST {platform}/api/revoke (Authorization: Bearer <token>) → платформа отзывает
-token. Лочно: очищает token/refresh_token/owner_id в config, выставляет enabled:false.
-Сессии больше не шлются. Повторное использование требует нового setup-кода.
+POST {platform}/api/uplink/revoke с локальным Bearer-токеном прекращает будущую
+отправку. Уже принятый приватный архив эта команда не удаляет.
 """
 import json
 import sys
@@ -15,45 +14,73 @@ BASE = Path.home() / ".claude" / "lenin_uplink"
 CONFIG = BASE / "config.json"
 
 
-def main():
-    if not CONFIG.exists():
-        print("config не найден — нечего отзывать.")
-        return 0
-    cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
-    token = cfg.get("token", "")
-    base = cfg.get("platform_url", "https://lenin.nglain.com").rstrip("/")
-    if token and token != "dev-mock-token":
-        req = urllib.request.Request(base + "/api/revoke", method="POST", headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        })
-        try:
-            with urllib.request.urlopen(req, timeout=20) as resp:
-                print(f"платформа: revoke → {resp.status}")
-        except urllib.error.HTTPError as e:
-            print(f"платформа: revoke → HTTP {e.code} (продолжаю локальную очистку)")
-        except Exception as e:
-            print(f"платформа недоступна ({e}) — очищаю локально всё равно")
-    # локальная очистка (atomic, как в session_uplink)
-    cfg["token"] = "dev-mock-token"
-    cfg.pop("refresh_token", None)
-    cfg.pop("owner_id", None)
-    cfg["enabled"] = False
-    tmp = CONFIG.with_suffix(".tmp")
-    tmp.write_text(json.dumps(cfg, ensure_ascii=False, indent=1), encoding="utf-8")
-    tmp.replace(CONFIG)
+def save_config(cfg):
+    BASE.mkdir(parents=True, exist_ok=True)
+    temporary = CONFIG.with_suffix(".tmp")
+    temporary.write_text(json.dumps(cfg, ensure_ascii=False, indent=1), encoding="utf-8")
+    temporary.replace(CONFIG)
     try:
         CONFIG.chmod(0o600)
     except OSError:
         pass
-    # сброс state.json — иначе после re-register (новый owner_id) синк досылает
-    # с чужих offset'ов, пропуская начало. Новый owner должен стартовать с нуля.
+
+
+def clear_local_registration(cfg):
+    cfg["token"] = ""
+    cfg.pop("refresh_token", None)
+    cfg.pop("owner_id", None)
+    cfg.pop("core_id", None)
+    cfg["enabled"] = False
+    save_config(cfg)
     state = BASE / "state.json"
     if state.exists():
         state.unlink()
-        print("✓ state.json сброшен (новая привязка начнёт с нуля)")
-    print("✓ привязка отозвана. token очищен, синк отключён (enabled=false).")
-    print("  для повторного подключения получите новый setup-код в профиле платформы")
+
+
+def revoke():
+    if not CONFIG.exists():
+        return "not_connected"
+    cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
+    token = str(cfg.get("token") or "")
+    if not token or token == "dev-mock-token":
+        clear_local_registration(cfg)
+        return "not_connected"
+
+    # Stop local delivery before making the remote request. On a transient
+    # failure the token is retained solely so the user can retry revocation.
+    cfg["enabled"] = False
+    save_config(cfg)
+    base = str(cfg.get("platform_url") or "https://lenin.nglain.com").rstrip("/")
+    request = urllib.request.Request(base + "/api/uplink/revoke", method="POST", headers={
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    })
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            if response.status != 200:
+                raise RuntimeError(f"платформа ответила HTTP {response.status}")
+    except urllib.error.HTTPError as error:
+        if error.code != 401:
+            raise RuntimeError(f"платформа ответила HTTP {error.code}") from error
+    except urllib.error.URLError as error:
+        raise RuntimeError(f"платформа недоступна: {error.reason}") from error
+
+    clear_local_registration(cfg)
+    return "revoked"
+
+
+def main():
+    try:
+        result = revoke()
+    except (OSError, ValueError, RuntimeError) as error:
+        print(f"Uplink локально остановлен, но серверный доступ не отозван: {error}")
+        print("Повторите отключение, когда платформа будет доступна.")
+        return 1
+    if result == "not_connected":
+        print("Lenin Client не был подключён; локальная отправка выключена.")
+        return 0
+    print("✓ Устройство отключено, Uplink-токен отозван.")
+    print("  Для повторного подключения получите новый код в профиле платформы.")
     return 0
 
 

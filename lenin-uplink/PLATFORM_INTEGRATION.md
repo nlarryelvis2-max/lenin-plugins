@@ -57,9 +57,9 @@ Content-Type: application/json
   "proto": "lenin-uplink/1",
   "client": {
     "name": "lenin-client",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "core_version": "0.1.5",
-    "uplink_version": "1.1.3"
+    "uplink_version": "1.1.4"
   },
   "chunks": []
 }

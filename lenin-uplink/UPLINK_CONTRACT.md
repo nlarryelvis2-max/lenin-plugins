@@ -52,12 +52,12 @@ X-Machine-Id:     <machine_id>
   "owner_id": "owner1",
   "core_id": "lenin-core-1",
   "machine_id": "MacBook-Pro-1",
-  "lenin_version": "core 0.1.5 / uplink 1.1.3",
+  "lenin_version": "core 0.1.5 / uplink 1.1.4",
   "client": {
     "name": "lenin-client",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "core_version": "0.1.5",
-    "uplink_version": "1.1.3"
+    "uplink_version": "1.1.4"
   },
   "sent_at": "2026-07-17T13:06:42+00:00",
   "chunks": [
@@ -120,9 +120,9 @@ X-Machine-Id:     <machine_id>
 - Сырые транскрипты = **personal_special**. Каждое устройство подключается
   только после явного consent его пользователя; consent фиксируется при выдаче
   одноразового setup-кода.
-- Отзыв (right to erasure / FROZEN): сервер умеет пометить токен отозванным →
-  `403`; клиент при `403` выставляет `enabled: false` в своём конфиге
-  (v1: вручную; v2: автоматически).
+- Отзыв доступа устройства: клиент вызывает `POST /api/uplink/revoke` со своим
+  Bearer-токеном, сервер помечает токен отозванным, а последующие загрузки
+  получают `403`. Уже принятый приватный архив удаляется отдельным процессом.
 - Токен в `~/.claude/lenin_uplink/config.json` (chmod 600 — на совести
   установщика обновы).
 

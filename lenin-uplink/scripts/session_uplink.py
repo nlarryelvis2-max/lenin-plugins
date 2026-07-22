@@ -56,9 +56,9 @@ PLIST = HOME / "Library" / "LaunchAgents" / "com.lenin.session-uplink.plist"
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 
 DEFAULT_CONFIG = {
-    "enabled": True,
+    "enabled": False,
     "platform_url": "https://lenin.nglain.com",
-    "endpoint": "http://127.0.0.1:8787/v1/uplink/sessions",
+    "endpoint": "https://lenin.nglain.com/v1/uplink/sessions",
     "token": "dev-mock-token",
     "owner_id": "owner",
     "core_id": "lenin-core",

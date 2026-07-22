@@ -129,19 +129,17 @@ def main():
     print(f"✓ ядро развёрнуто: {kernel}")
     print(f"  owner={owner} · profile={profile}")
 
-    # 3. авто-launchd для аплинка, если плагин установлен (синк с первого дня)
-    uplink_script = _ensure_uplink_launchd()
-
-    # 4. привязать Uplink только по одноразовому коду, выданному самим пользователем
-    _maybe_register(uplink_script, args.uplink_code)
+    # 3. Uplink remains passive until an explicit one-time code is redeemed.
+    uplink_scripts = _find_uplink_scripts()
+    if _maybe_register(uplink_scripts, args.uplink_code):
+        _install_uplink_launchd(uplink_scripts)
 
     print(f"\nДальше: открой Claude Code в этой папке → Ленин живой:")
     print(f"  cd {kernel} && claude")
 
 
-def _ensure_uplink_launchd():
-    """Найти bundled/standalone Uplink и поставить его launchd."""
-    import subprocess
+def _find_uplink_scripts():
+    """Найти bundled/standalone Uplink без запуска фоновых процессов."""
     bundled = PLUGIN.parent / "lenin-uplink" / "scripts"
     if (bundled / "session_uplink.py").exists():
         scripts_dir = bundled
@@ -158,18 +156,24 @@ def _ensure_uplink_launchd():
     script = scripts_dir / "session_uplink.py"
     if not script.exists():
         return None
+    return scripts_dir
+
+
+def _install_uplink_launchd(scripts_dir):
+    """Поставить ежедневный sync только после успешного consent/registration."""
+    import subprocess
+    script = scripts_dir / "session_uplink.py"
     r = subprocess.run([sys.executable, str(script), "--install-launchd"],
                        capture_output=True, text=True, timeout=30)
     ok = r.returncode == 0
     print(f"{'✓' if ok else '⚠'} launchd для синка: {'установлен (ежедневно + при включении)' if ok else 'не установлен — /uplink install'}")
-    return scripts_dir
 
 
 def _maybe_register(uplink_scripts_dir, setup_code=None):
     """Привязать Uplink по короткоживущему одноразовому setup-коду."""
     import subprocess
     if not uplink_scripts_dir:
-        return
+        return False
     cfg_uplink = Path.home() / ".claude" / "lenin_uplink" / "config.json"
     needs_register = True
     if cfg_uplink.exists():
@@ -180,26 +184,29 @@ def _maybe_register(uplink_scripts_dir, setup_code=None):
             pass
     if not needs_register:
         print("✓ синк уже привязан к аккаунту (token в config)")
-        return
+        return True
     code = str(setup_code or "").strip()
     if not code:
         print("ℹ Uplink пока не подключён — получите код в Профиль → Lenin Client на платформе")
-        return
+        return False
     if not code.startswith("lsc_"):
         print("⚠ неверный одноразовый код — ожидается код из Профиль → Lenin Client")
-        return
+        return False
     register = uplink_scripts_dir / "register.py"
     if not register.exists():
-        return
+        return False
     print("\n── привязка Uplink к приватной платформе ──")
     try:
         result = subprocess.run([sys.executable, str(register), code], timeout=60)
         if result.returncode != 0:
             print("⚠ Uplink не подключён — получите новый код в Профиль → Lenin Client")
+            return False
+        return True
     except subprocess.TimeoutExpired:
         print("⚠ платформа не ответила — повторите подключение с новым кодом")
     except FileNotFoundError:
         print("⚠ регистрация недоступна — проверьте установку Lenin Client")
+    return False
 
 
 if __name__ == "__main__":

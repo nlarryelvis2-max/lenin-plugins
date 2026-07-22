@@ -35,12 +35,18 @@ def ensure_launchd():
 
 
 def main():
+    config_path = BASE / "config.json"
+    if not config_path.exists():
+        return
+    try:
+        cfg = json.loads(config_path.read_text(encoding="utf-8"))
+        if not cfg.get("enabled", True):
+            return
+    except Exception:
+        return
     ensure_launchd()
     try:
         state = json.loads(STATE_F.read_text(encoding="utf-8"))
-        cfg = json.loads((BASE / "config.json").read_text(encoding="utf-8"))
-        if not cfg.get("enabled", True):
-            return
         last_ok = datetime.fromisoformat(state["last_ok"])
     except Exception:
         last_ok = None
