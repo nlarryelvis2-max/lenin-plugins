@@ -1,0 +1,23 @@
+{
+  "description": "lenin-core: идентичность + 14D-веса при старте, атомы + гейты при промпте",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/identity_context.py\" 2>/dev/null || true" },
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/session_gradient.py\" 2>/dev/null || true" },
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/posterior_health.py\" 2>/dev/null || true" }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/atom_swarm.py\" 2>/dev/null || true" },
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/slow_read_gate.py\" 2>/dev/null || true" },
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/verify_gate.py\" 2>/dev/null || true" }
+        ]
+      }
+    ]
+  }
+}

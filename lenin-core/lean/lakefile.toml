@@ -1,0 +1,26 @@
+name = "lenin_core_formal"
+defaultTargets = ["LeninCoreFormal"]
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+version = "git#v4.28.0"
+
+# Канон lenin-core: T1 (max-entropy prior) → T2-T8 (свойства posterior/FEP) → T★ (variational).
+# clinical/instances/wave20/snapshots — вне lite-канона (специфичное).
+[[lean_lib]]
+name = "LeninCoreFormal"
+roots = [
+  "Lenin_T1_MaxEntropy",
+  "Lenin_T2_PosteriorConvergence",
+  "Lenin_T3_InformationGain",
+  "Lenin_T4_ContractionRate",
+  "Lenin_T5_GradientDiscrepancy",
+  "Lenin_T6_Hoeffding",
+  "Lenin_T7_Bifurcation",
+  "Lenin_T8_FEPDecay",
+  "Lenin_TStar",
+  "Lenin_Fisher_Geometry",
+  "Lenin_Wasserstein",
+  "Lenin_DataSchemas",
+]
