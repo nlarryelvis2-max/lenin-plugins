@@ -117,22 +117,32 @@ def machine_id() -> str:
 
 
 def plugin_version(plugin: str) -> str:
-    if plugin == "uplink":
-        roots = [PLUGIN_ROOT]
-    else:
-        registry = load_json(HOME / ".claude" / "plugins" / "installed_plugins.json", {})
-        installs = registry.get("plugins", {}).get(f"lenin-{plugin}@lenin", [])
-        if installs:
-            current = max(installs, key=lambda item: str(item.get("lastUpdated") or item.get("installedAt") or ""))
-            version = str(current.get("version", "")).strip()
-            if version:
-                return version
-        cache = HOME / ".claude" / "plugins" / "cache" / "lenin" / f"lenin-{plugin}"
-        roots = sorted(
-            (path for path in cache.glob("*") if path.is_dir()),
-            key=lambda path: path.stat().st_mtime,
-            reverse=True,
-        )
+    package_root = PLUGIN_ROOT.parent
+    if plugin == "client":
+        marketplace = load_json(package_root / ".claude-plugin" / "marketplace.json", {})
+        bundled = next((item for item in marketplace.get("plugins", []) if item.get("name") == "lenin-client"), {})
+        version = str(bundled.get("version", "")).strip()
+        if version:
+            return version
+
+    bundled_roots = {
+        "core": package_root / "lenin-core",
+        "uplink": PLUGIN_ROOT,
+    }
+    roots = [bundled_roots[plugin]] if plugin in bundled_roots else []
+    registry = load_json(HOME / ".claude" / "plugins" / "installed_plugins.json", {})
+    installs = registry.get("plugins", {}).get(f"lenin-{plugin}@lenin", [])
+    if installs:
+        current = max(installs, key=lambda item: str(item.get("lastUpdated") or item.get("installedAt") or ""))
+        version = str(current.get("version", "")).strip()
+        if version:
+            return version
+    cache = HOME / ".claude" / "plugins" / "cache" / "lenin" / f"lenin-{plugin}"
+    roots.extend(sorted(
+        (path for path in cache.glob("*") if path.is_dir()),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    ))
     for root in roots:
         manifest = load_json(root / ".claude-plugin" / "plugin.json", {})
         version = str(manifest.get("version", "")).strip()
@@ -142,12 +152,20 @@ def plugin_version(plugin: str) -> str:
 
 
 def lenin_version() -> str:
-    versions = [
-        f"core {version}" for version in [plugin_version("core")] if version
-    ] + [
-        f"uplink {version}" for version in [plugin_version("uplink")] if version
-    ]
+    metadata = client_metadata()
+    versions = [f"core {metadata['core_version']}"] if metadata["core_version"] else []
+    if metadata["uplink_version"]:
+        versions.append(f"uplink {metadata['uplink_version']}")
     return " / ".join(versions)
+
+
+def client_metadata() -> dict:
+    return {
+        "name": "lenin-client",
+        "version": plugin_version("client"),
+        "core_version": plugin_version("core"),
+        "uplink_version": plugin_version("uplink"),
+    }
 
 
 def scan_pending(state: dict, max_chunk: int, only: str | None = None) -> list[dict]:
@@ -195,6 +213,7 @@ def post_batch(cfg: dict, mid: str, batch: list[dict]) -> dict:
         "machine_id": mid,
         "core_id": cfg["core_id"],
         "lenin_version": lenin_version(),
+        "client": client_metadata(),
         "sent_at": now_iso(),
         "chunks": [{k: v for k, v in c.items() if not k.startswith("_")} for c in batch],
     }
@@ -317,6 +336,30 @@ def status() -> None:
     print(f"launchd:   {'установлен' if PLIST.exists() else 'НЕ установлен'} ({PLIST.name})")
 
 
+def heartbeat() -> int:
+    cfg = load_config()
+    if not cfg.get("enabled", True):
+        print("uplink: disabled в config.json")
+        return 1
+    try:
+        response = post_batch(cfg, machine_id(), [])
+    except (urllib.error.URLError, OSError, json.JSONDecodeError) as error:
+        log(f"FAIL heartbeat: {error}")
+        print(f"uplink: heartbeat не доставлен ({error})")
+        return 1
+    if not response.get("accepted"):
+        log(f"FAIL heartbeat rejected: {response}")
+        print("uplink: платформа отклонила heartbeat")
+        return 1
+    state = load_json(STATE_F, {})
+    state["last_run"] = now_iso()
+    state["last_ok"] = state["last_run"]
+    save_json(STATE_F, state)
+    log("uplink: heartbeat accepted")
+    print("uplink: подключение подтверждено")
+    return 0
+
+
 def install_launchd() -> None:
     py = sys.executable or "/usr/bin/python3"
     script = str(Path(__file__).resolve())
@@ -354,6 +397,7 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--status", action="store_true")
     ap.add_argument("--install-launchd", action="store_true")
+    ap.add_argument("--heartbeat", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--max-mb", type=float, default=None)
     ap.add_argument("--only", default=None, help="фильтр путей (подстрока) — для тестов")
     args = ap.parse_args()
@@ -364,6 +408,8 @@ def main() -> int:
     if args.install_launchd:
         install_launchd()
         return 0
+    if args.heartbeat:
+        return heartbeat()
     if not (args.run or args.dry_run):
         ap.print_help()
         return 0

@@ -4,7 +4,8 @@
 память (механизм + пустые полки), онбординг. **Без личных данных владельца** —
 каждый наполняет ядро собой.
 
-Парный плагин `lenin-uplink` (синк сессий) ставится опционально.
+Для новых установок ядро входит в единый публичный пакет `lenin-client` вместе
+с Uplink. Отдельный `lenin-core` оставлен для совместимости.
 
 ## Что делает
 
@@ -22,12 +23,13 @@
 Полный гайд: [`INSTALL.md`](INSTALL.md). Кратко:
 
 ```
-/plugin marketplace add https://lenin.nglain.com/plugins
-/plugin install lenin-core@lenin
-/lenin setup        # онбординг: имя + профиль → разворачивает ядро
+/plugin marketplace add nlarryelvis2-max/lenin-plugins
+/plugin install lenin-client@lenin
+/reload-plugins
+/lenin-client:setup <одноразовый код из платформы>
 ```
 
-Затем открыть Claude Code в папке ядра (куда `/lenin setup` развернул шаблоны) —
+Затем открыть Claude Code в папке ядра, куда setup развернул шаблоны, —
 Ленин живой.
 
 ## Файлы
@@ -48,5 +50,5 @@ scripts/         setup.py (онбординг), doctor.py (health-check)
 
 ## Онбординг-профили
 
-`/lenin setup` спросит тип: psych / cfo / ops / builder / designer / athlete.
+Setup спросит тип: psych / cfo / ops / builder / designer / athlete.
 От профиля зависит язык Ленина (метафоры, глубина, тон).

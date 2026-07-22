@@ -25,7 +25,35 @@ class SyncStatusTests(unittest.TestCase):
         self.home.cleanup()
 
     def test_reports_the_installed_uplink_version(self):
-        self.assertIn("uplink 1.1.0", self.module.lenin_version())
+        self.assertEqual(self.module.client_metadata()["version"], "0.1.0")
+        self.assertEqual(self.module.client_metadata()["core_version"], "0.1.4")
+        self.assertEqual(self.module.client_metadata()["uplink_version"], "1.1.1")
+        self.assertIn("core 0.1.4", self.module.lenin_version())
+        self.assertIn("uplink 1.1.1", self.module.lenin_version())
+
+    def test_payload_reports_structured_client_versions(self):
+        captured = {}
+
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return b'{"accepted":true,"files":{}}'
+
+        def open_request(request, timeout):
+            self.assertEqual(timeout, 120)
+            captured["body"] = json.loads(self.module.gzip.decompress(request.data))
+            return Response()
+
+        config = {**self.module.DEFAULT_CONFIG, "token": "active", "owner_id": "larry", "core_id": "lenin-test"}
+        with patch.object(self.module.urllib.request, "urlopen", side_effect=open_request):
+            self.module.post_batch(config, "mac", [])
+        self.assertEqual(captured["body"]["client"]["name"], "lenin-client")
+        self.assertEqual(captured["body"]["client"]["uplink_version"], "1.1.1")
 
     def test_empty_run_sends_one_heartbeat_and_records_success(self):
         self.module.PROJECTS.mkdir(parents=True)

@@ -1,6 +1,6 @@
 {
   "name": "lenin-uplink",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Централизация сессий Claude Code: раз в сутки (launchd + SessionStart-подхват) новые байты ~/.claude/projects/**/*.jsonl уходят на сервер Ленина по protocol lenin-uplink/1",
   "author": { "name": "lenin-ecosystem" },
   "keywords": ["lenin", "uplink", "sync", "sessions"]

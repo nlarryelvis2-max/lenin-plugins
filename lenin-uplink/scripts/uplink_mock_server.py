@@ -2,7 +2,7 @@
 """uplink_mock_server.py — dummy-макет серверной ручки для session_uplink.py.
 
 Реализует контракт v1 (см. session_uplink.py) на stdlib, чтобы обкатать весь
-конвейер до появления реального сервера Фила. Принятые байты складывает в
+конвейер независимо от production. Принятые байты складывает в
 ~/.claude/lenin_uplink/mock_received/<machine_id>/<path> — append по offset,
 т.е. на выходе точные копии сессионных файлов, собранные инкрементально.
 
@@ -32,9 +32,6 @@ def safe_rel(path: str) -> Path | None:
 
 
 class Handler(BaseHTTPRequestHandler):
-    # device-flow state (мок): device_code → {created, confirmed}
-    devices = {}
-
     def log_message(self, fmt, *args):  # тихий лог в одну строку
         print(f"[mock] {self.address_string()} {fmt % args}")
 
@@ -55,56 +52,25 @@ class Handler(BaseHTTPRequestHandler):
             return {}
 
     def do_POST(self):
-        # ── device-flow: /api/device/code (RFC 8628 + PKCE) ──
-        if self.path == "/api/device/code":
+        if self.path == "/api/uplink/register":
             body = self._read_json()
-            import secrets, time
-            alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # без I/O/0/1 (RFC 8628 §6.1)
-            def grp(): return "".join(secrets.choice(alphabet) for _ in range(4))
-            user_code = f"{grp()}-{grp()}"
-            device_code = secrets.token_urlsafe(32)
-            verification_uri = "http://127.0.0.1:8787/device"
-            self.devices[device_code] = {
-                "created": time.time(),
-                "core_id": body.get("core_id", "lenin-core"),
-                "challenge": body.get("code_challenge"),
-                "method": body.get("code_challenge_method"),
-            }
-            return self._reply(200, {
-                "device_code": device_code,
-                "user_code": user_code,
-                "verification_uri": verification_uri,
-                "verification_uri_complete": f"{verification_uri}?code={user_code}",
-                "expires_in": 600,
-                "interval": 2,
-            })
-        # ── device-flow: /api/device/token (poll, RFC 8628 §3.5 + PKCE) ──
-        if self.path == "/api/device/token":
-            body = self._read_json()
-            dc = body.get("device_code", "")
-            dev = self.devices.get(dc)
-            if not dev:
-                return self._reply(404, {"error": "expired_token"})
-            import time, hashlib, base64
-            if dev.get("challenge"):  # PKCE-проверка
-                v = body.get("code_verifier", "")
-                calc = base64.urlsafe_b64encode(hashlib.sha256(v.encode("ascii")).digest()).rstrip(b"=").decode("ascii")
-                if calc != dev["challenge"]:
-                    return self._reply(400, {"error": "invalid_grant", "error_description": "PKCE mismatch"})
-            if time.time() - dev["created"] < 4:  # «юзер подтвердил» через ~4с
-                return self._reply(202, {"error": "authorization_pending"})
-            return self._reply(200, {
-                "token": f"mock-token-{dc[:8]}",
-                "refresh_token": f"mock-refresh-{dc[:8]}",
-                "owner_id": f"mock-owner-{dc[:4]}",
-                "endpoint": "http://127.0.0.1:8787/v1/uplink/sessions",
-                "expires_in": 3600,
+            code = str(body.get("code", ""))
+            machine = str(body.get("machine_id", "mock-mac"))
+            if not code.startswith("lsc_"):
+                return self._reply(401, {"error": "invalid setup code"})
+            return self._reply(201, {
+                "owner_id": "mock-owner",
+                "core_id": f"lenin-{machine}",
+                "machine_id": machine,
+                "token": "dev-mock-token",
+                "sessions_endpoint": "http://127.0.0.1:8787/v1/uplink/sessions",
+                "protocol": "lenin-uplink/1",
             })
         if self.path != "/v1/uplink/sessions":
             return self._reply(404, {"error": "unknown endpoint"})
         auth = self.headers.get("Authorization", "")
         tok = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else ""
-        if tok != TOKEN and not tok.startswith("mock-token-"):
+        if tok != TOKEN:
             return self._reply(401, {"error": "bad token"})
         length = int(self.headers.get("Content-Length", 0))
         raw = self.rfile.read(length)

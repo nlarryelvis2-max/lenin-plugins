@@ -5,6 +5,7 @@
   1. Спросить имя владельца + тип профиля.
   2. Записать ~/.claude/lenin/config.json.
   3. Развернуть templates/ в папку ядра владельца (CLAUDE.md, MEMORY.md, hot/, library/).
+  4. При наличии одноразового кода подключить Uplink к приватной платформе.
 
 Режимы:
   setup.py --owner X --profile psych --dir ~/my-lenin   # неинтерактив (для slash command)
@@ -72,14 +73,28 @@ def main():
     ap.add_argument("--profile", choices=PROFILES, help="тип профиля")
     ap.add_argument("--dir", help="куда развернуть ядро")
     ap.add_argument("--force", action="store_true", help="перезаписать существующие файлы")
+    ap.add_argument("--uplink-code", help="одноразовый код lsc_… из профиля платформы")
     args = ap.parse_args()
 
+    try:
+        existing = json.loads(CONFIG.read_text(encoding="utf-8"))
+    except Exception:
+        existing = {}
     interactive = sys.stdin.isatty() and not (args.owner and args.profile)
-    owner = args.owner or (input("Имя владельца: ").strip() if interactive else "owner")
-    profile = args.profile or (ask_profile() if interactive else "psych")
-    survey = ask_survey() if interactive else {}
+    owner = args.owner or str(existing.get("owner") or "").strip()
+    if not owner:
+        owner = input("Имя владельца: ").strip() if interactive else Path.home().name
+    existing_profile = str(existing.get("profile") or "")
+    profile = args.profile or (existing_profile if existing_profile in PROFILES else "")
+    if not profile:
+        profile = ask_profile() if interactive else "builder"
+    survey = existing.get("survey") if isinstance(existing.get("survey"), dict) else {}
+    if interactive and not survey:
+        survey = ask_survey()
     default_dir = str(Path.home() / ".claude" / "lenin-kernel")
-    kernel_s = args.dir or (input(f"Куда развернуть ядро [{default_dir}]: ").strip() if interactive else default_dir)
+    configured_dir = str(existing.get("kernel") or "").strip()
+    kernel_s = args.dir or configured_dir or (input(f"Куда развернуть ядро [{default_dir}]: ").strip() if interactive else default_dir)
+    kernel_s = kernel_s or default_dir
     kernel = Path(kernel_s).expanduser().resolve()
 
     # 1. config (анкета → кормит 14D-холодный старт + identity_context)
@@ -87,13 +102,15 @@ def main():
     CONFIG.write_text(json.dumps({
         "owner": owner, "profile": profile, "kernel": str(kernel),
         "survey": survey,
-        "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "created": existing.get("created") or datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"✓ конфиг: {CONFIG}")
 
     # 2. deploy templates
     kernel.mkdir(parents=True, exist_ok=True)
-    (kernel / "CLAUDE.md").write_text(render_claude(owner, profile, survey), encoding="utf-8")
+    identity = kernel / "CLAUDE.md"
+    if args.force or not identity.exists():
+        identity.write_text(render_claude(owner, profile, survey), encoding="utf-8")
     for name in ["MEMORY.md"]:
         src, dst = TEMPLATES / f"{name}.template", kernel / name
         if src.exists() and (args.force or not dst.exists()):
@@ -115,24 +132,29 @@ def main():
     # 3. авто-launchd для аплинка, если плагин установлен (синк с первого дня)
     uplink_script = _ensure_uplink_launchd()
 
-    # 4. авто-register на платформе (device flow), если token ещё моковый
-    _maybe_register(uplink_script)
+    # 4. привязать Uplink только по одноразовому коду, выданному самим пользователем
+    _maybe_register(uplink_script, args.uplink_code)
 
     print(f"\nДальше: открой Claude Code в этой папке → Ленин живой:")
     print(f"  cd {kernel} && claude")
 
 
 def _ensure_uplink_launchd():
-    """Если lenin-uplink установлен — поставить его launchd. Возвращает путь к скрипт-директории uplink или None."""
+    """Найти bundled/standalone Uplink и поставить его launchd."""
     import subprocess
+    bundled = PLUGIN.parent / "lenin-uplink" / "scripts"
+    if (bundled / "session_uplink.py").exists():
+        scripts_dir = bundled
+    else:
+        scripts_dir = None
     cache = Path.home() / ".claude" / "plugins" / "cache" / "lenin" / "lenin-uplink"
-    if not cache.exists():
-        print("ℹ lenin-uplink не установлен — синк опционален (/plugin install lenin-uplink@lenin)")
+    if scripts_dir is None and cache.exists():
+        versions = sorted(p for p in cache.iterdir() if p.is_dir() and p.name[:1].isdigit())
+        if versions:
+            scripts_dir = versions[-1] / "scripts"
+    if scripts_dir is None:
+        print("ℹ Uplink не установлен — синхронизацию можно подключить позже")
         return None
-    versions = sorted(p for p in cache.iterdir() if p.is_dir() and p.name[:1].isdigit())
-    if not versions:
-        return None
-    scripts_dir = versions[-1] / "scripts"
     script = scripts_dir / "session_uplink.py"
     if not script.exists():
         return None
@@ -143,9 +165,8 @@ def _ensure_uplink_launchd():
     return scripts_dir
 
 
-def _maybe_register(uplink_scripts_dir):
-    """Если uplink стоит и token ещё моковый — device-flow регистрация на платформе.
-    Бесшовно: юзер подтверждает устройство на lenin.nglain.com → токен в config."""
+def _maybe_register(uplink_scripts_dir, setup_code=None):
+    """Привязать Uplink по короткоживущему одноразовому setup-коду."""
     import subprocess
     if not uplink_scripts_dir:
         return
@@ -160,17 +181,25 @@ def _maybe_register(uplink_scripts_dir):
     if not needs_register:
         print("✓ синк уже привязан к аккаунту (token в config)")
         return
+    code = str(setup_code or "").strip()
+    if not code:
+        print("ℹ Uplink пока не подключён — получите код в Профиль → Lenin Client на платформе")
+        return
+    if not code.startswith("lsc_"):
+        print("⚠ неверный одноразовый код — ожидается код из Профиль → Lenin Client")
+        return
     register = uplink_scripts_dir / "register.py"
     if not register.exists():
         return
-    print("\n── привязка к платформе (device flow) ──")
-    print("   (потребует подтверждения на lenin.nglain.com)")
+    print("\n── привязка Uplink к приватной платформе ──")
     try:
-        subprocess.run([sys.executable, str(register)], timeout=660)
+        result = subprocess.run([sys.executable, str(register), code], timeout=60)
+        if result.returncode != 0:
+            print("⚠ Uplink не подключён — получите новый код в Профиль → Lenin Client")
     except subprocess.TimeoutExpired:
-        print("⚠ регистрация превысила время — заверши /uplink register позже")
+        print("⚠ платформа не ответила — повторите подключение с новым кодом")
     except FileNotFoundError:
-        print("⚠ регистрация недоступна — /uplink register позже")
+        print("⚠ регистрация недоступна — проверьте установку Lenin Client")
 
 
 if __name__ == "__main__":

@@ -2,19 +2,53 @@
   "name": "lenin",
   "owner": { "name": "lenin-ecosystem" },
   "metadata": {
-    "description": "Маркетплейс плагинов экосистемы Ленин: поведение ядра, распространяемое отдельно от данных владельца",
-    "version": "1.0.0"
+    "description": "Публичный Lenin Client: личное ядро и безопасная синхронизация с приватной платформой",
+    "version": "1.1.0"
   },
   "plugins": [
     {
+      "name": "lenin-client",
+      "displayName": "Lenin Client",
+      "version": "0.1.0",
+      "source": "./",
+      "strict": false,
+      "description": "Единый клиент Ленина для Claude Code: личное ядро, память и Uplink сессий",
+      "homepage": "https://lenin.nglain.com",
+      "repository": "https://github.com/nlarryelvis2-max/lenin-plugins",
+      "keywords": ["lenin", "client", "memory", "uplink", "project-context"],
+      "commands": ["./client/commands/"],
+      "skills": ["./lenin-core/skills/"],
+      "hooks": {
+        "SessionStart": [
+          {
+            "hooks": [
+              { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/lenin-core/hooks/identity_context.py\" 2>/dev/null || true" },
+              { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/lenin-core/hooks/session_gradient.py\" 2>/dev/null || true" },
+              { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/lenin-core/hooks/posterior_health.py\" 2>/dev/null || true" },
+              { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/lenin-uplink/scripts/session_uplink_check.py\" 2>/dev/null || true" }
+            ]
+          }
+        ],
+        "UserPromptSubmit": [
+          {
+            "hooks": [
+              { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/lenin-core/hooks/atom_swarm.py\" 2>/dev/null || true" },
+              { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/lenin-core/hooks/slow_read_gate.py\" 2>/dev/null || true" },
+              { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/lenin-core/hooks/verify_gate.py\" 2>/dev/null || true" }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "name": "lenin-core",
       "source": "./lenin-core",
-      "description": "Ядро Ленина — цифровое второе Я: 14D-движок, атомные линзы, Lean-формализация, память, онбординг"
+      "description": "Внутренний компонент Lenin Client: личное ядро, память и онбординг"
     },
     {
       "name": "lenin-uplink",
       "source": "./lenin-uplink",
-      "description": "Ежедневная централизация сессионных файлов Claude Code на сервер Ленина (protocol lenin-uplink/1)"
+      "description": "Внутренний компонент Lenin Client: безопасная синхронизация сессий по lenin-uplink/1"
     }
   ]
 }

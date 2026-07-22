@@ -1,71 +1,38 @@
-# lenin-uplink — плагин централизации сессий
+# lenin-uplink
 
-Часть экосистемы Ленин. **Полный гайд по установке: [`INSTALL.md`](INSTALL.md).**
-Health-check одной командой: `python3 scripts/doctor.py`.
+Внутренний компонент публичного `Lenin Client`. Инкрементально доставляет новые
+байты Claude Code sessions в приватный архив пользователя по протоколу
+`lenin-uplink/1`.
 
-Архитектурный принцип раздачи:
-**ядро = данные владельца** (папка с CLAUDE.md / library / hot — личное, не
-распространяется), **плагин = поведение** (хуки, команды, скрипты — ставится
-и обновляется через маркетплейс). Этот плагин — первый в линии.
+Новые пользователи устанавливают [`lenin-client@lenin`](../README.md). Отдельная
+установка компонента оставлена для совместимости и диагностики.
 
-## Что делает
+## Свойства
 
-Раз в сутки отправляет **новые байты** сессионных файлов Claude Code
-(`~/.claude/projects/**/*.jsonl`) на центральный сервер Ленина — полная
-история взаимодействия человек↔ядро, для пост-обработки. Протокол и
-требования к серверной ручке: `UPLINK_CONTRACT.md` (lenin-uplink/1).
-
-Три триггера:
-
-| Триггер | Механизм |
-|---|---|
-| ежедневно 08:10 | launchd `com.lenin.session-uplink` |
-| Мак включили | тот же launchd, `RunAtLoad` |
-| зашёл в Ленин, аплинка не было >24ч | SessionStart-хук плагина → фоновый прогон |
-
-Инкрементально (byte-offset манифест, шлётся только новое), идемпотентно
-(ретраи и дубли безвредны), самовосстанавливается (сервер — истина по
-offset). Обкатано: heal/resync тесты, байт-в-байт сверка.
-
-## Установка
-
-Маркетплейс живёт в отдельном приватном репо `lenin-plugins` (чистое поведение,
-без личных данных ядер). На любой Мак с доступом:
-
-```
-/plugin marketplace add https://github.com/nlarryelvis2-max/lenin-plugins.git
-/plugin install lenin-uplink@lenin
-/uplink install        # поставить launchd
-/uplink setup          # endpoint / token / owner_id / core_id
-```
-
-Доступ к приватному репо — через `gh auth login` (credential helper подхватит
-git-операции) или SSH-ключ. Разработка плагина идёт в основном репо ядра;
-переиздание маркетплейса — `./publish_plugins.sh` в корне основного репо.
-
-Конфиг: `~/.claude/lenin_uplink/config.json`. Пока реального сервера нет —
-дефолтный endpoint указывает на локальный мок (`scripts/uplink_mock_server.py`,
-он же эталон поведения ручки для разработчика сервера).
+- stdlib Python без внешних зависимостей;
+- byte-offset manifest и идемпотентный append;
+- только полные JSONL-строки;
+- лимиты 8 МБ на chunk, 24 МБ на batch, 200 МБ на run;
+- flock от параллельных запусков;
+- launchd ежедневно в 08:10 и при включении Mac;
+- SessionStart-подхват после 24 часов без успешного sync;
+- пустой heartbeat с версиями Client/Core/Uplink;
+- token в конфиге с mode `0600`.
 
 ## Команды
 
-`/uplink` (= status) · `/uplink run` · `/uplink dry` · `/uplink install` · `/uplink setup` · `/uplink doctor`
-
-## Этика (канон data-exchange-ethics)
-
-Сырые транскрипты = personal_special. Плагин ставится на машины флота
-**только с явным consent владельца ядра** — consent фиксируется при выдаче
-токена. Отзыв: сервер помечает токен → 403; локально `enabled: false` в
-конфиге выключает всё.
-
-## Файлы
-
+```text
+/lenin-client:uplink status
+/lenin-client:uplink run
+/lenin-client:uplink dry
+/lenin-client:uplink doctor
+/lenin-client:uplink register <одноразовый код>
 ```
-.claude-plugin/plugin.json      манифест
-hooks/hooks.json                SessionStart-подхват
-scripts/session_uplink.py       клиент (stdlib, один файл, позиционно-независим)
-scripts/session_uplink_check.py проверка >24ч → фоновый прогон
-scripts/uplink_mock_server.py   мок-ручка / эталон для серверной разработки
-commands/uplink.md              слэш-команда /uplink
-UPLINK_CONTRACT.md              контракт серверной ручки (передаётся на разработку)
-```
+
+Одноразовый код получает сам пользователь в **Профиль → Устройства** приватной
+платформы. Ручной ввод endpoint/token не используется.
+
+Контракты:
+
+- [`UPLINK_CONTRACT.md`](UPLINK_CONTRACT.md)
+- [`PLATFORM_INTEGRATION.md`](PLATFORM_INTEGRATION.md)

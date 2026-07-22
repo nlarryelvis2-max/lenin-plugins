@@ -1,0 +1,16 @@
+---
+description: "Управлять синхронизацией Lenin Client"
+allowed-tools: ["Bash"]
+---
+
+Управляй Uplink. Аргумент пользователя: `$ARGUMENTS`.
+
+- без аргумента или `status` → `python3 "${CLAUDE_PLUGIN_ROOT}/lenin-uplink/scripts/session_uplink.py" --status`
+- `run` → `python3 "${CLAUDE_PLUGIN_ROOT}/lenin-uplink/scripts/session_uplink.py" --run`
+- `dry` → `python3 "${CLAUDE_PLUGIN_ROOT}/lenin-uplink/scripts/session_uplink.py" --dry-run`
+- `install` → `python3 "${CLAUDE_PLUGIN_ROOT}/lenin-uplink/scripts/session_uplink.py" --install-launchd`
+- `doctor` → `python3 "${CLAUDE_PLUGIN_ROOT}/lenin-uplink/scripts/doctor.py"`
+- `register <lsc_…>` → `python3 "${CLAUDE_PLUGIN_ROOT}/lenin-uplink/scripts/register.py" "<lsc_…>"`
+
+Одноразовый код выдаёт приватная платформа в **Профиль → Устройства**. Никогда
+не проси token и не выводи его из локального конфига.
