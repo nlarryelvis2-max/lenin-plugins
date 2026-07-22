@@ -88,12 +88,15 @@
 
 | Плагин | Версия | Статус |
 |---|---|---|
-| `lenin-core` | 0.1.2 | ✅ готов (9 движков, 7 skills, Lean-канон, templates, онбординг) |
-| `lenin-uplink` | 1.0.3 | ✅ готов (клиент, мок, `/uplink test`, doctor, INSTALL) |
+| `lenin-core` | 0.1.3 | ✅ готов (9 движков, 7 skills, Lean-канон, templates, онбординг + анкета) |
+| `lenin-uplink` | 1.1.1 | ✅ готов (device-flow register + PKCE, refresh, revoke, `/uplink test`, doctor) |
 
-**Готово:** клиентские плагины, контракт аплинк, ТЗ платформы (backend + фронтенд).
-**В работе:** платформа `lenin.nglain.com` (register endpoint + приём сессий +
-страница установки). Когда скинут URL+test-token — интеграционный тест вживую.
+**Готово (клиент, полностью):** оба плагина + device-flow онбординг (RFC 8628 + PKCE)
++ refresh-token + revoke + контракт аплинк + ТЗ платформы (backend + фронтенд).
+**В работе (платформа):** `lenin.nglain.com` — реализация 6 endpoint'ов из
+`PLATFORM_INTEGRATION.md` (device/code, device/token, uplink/sessions, refresh,
+revoke, health) + страница `/device` + страница установки. Это единственный
+блокер end-to-end. Когда скинут URL+test-token — интеграционный тест вживую.
 
 ## Документация
 
