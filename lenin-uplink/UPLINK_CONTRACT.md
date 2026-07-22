@@ -51,6 +51,7 @@ X-Machine-Id:     <machine_id>
   "owner_id": "owner1",
   "core_id": "lenin-core-1",
   "machine_id": "MacBook-Pro-1",
+  "lenin_version": "core 0.1.3 / uplink 1.1.0",
   "sent_at": "2026-07-17T13:06:42+00:00",
   "chunks": [
     {

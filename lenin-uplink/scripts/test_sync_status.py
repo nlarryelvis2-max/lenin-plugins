@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+"""Focused tests for Uplink version and successful-sync reporting."""
+from __future__ import annotations
+
+import importlib.util
+import json
+import os
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+SCRIPT = Path(__file__).resolve().parent / "session_uplink.py"
+
+
+class SyncStatusTests(unittest.TestCase):
+    def setUp(self):
+        self.home = tempfile.TemporaryDirectory()
+        with patch.dict(os.environ, {"HOME": self.home.name}):
+            spec = importlib.util.spec_from_file_location("session_uplink_status", SCRIPT)
+            self.module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(self.module)
+
+    def tearDown(self):
+        self.home.cleanup()
+
+    def test_reports_the_installed_uplink_version(self):
+        self.assertIn("uplink 1.1.0", self.module.lenin_version())
+
+    def test_empty_run_sends_one_heartbeat_and_records_success(self):
+        self.module.PROJECTS.mkdir(parents=True)
+        self.module.save_json(self.module.CONFIG_F, {
+            **self.module.DEFAULT_CONFIG,
+            "enabled": True,
+            "token": "active",
+            "owner_id": "larry",
+            "core_id": "lenin-test",
+        })
+        batches = []
+
+        def accept(_config, _machine, batch):
+            batches.append(batch)
+            return {"accepted": True, "files": {}}
+
+        with patch.object(self.module, "post_batch", side_effect=accept):
+            self.assertEqual(self.module.run(False, 1), 0)
+        self.assertEqual(batches, [[]])
+        self.assertTrue(json.loads(self.module.STATE_F.read_text())["last_ok"])
+
+
+if __name__ == "__main__":
+    unittest.main()
