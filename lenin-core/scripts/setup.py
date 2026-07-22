@@ -88,8 +88,32 @@ def main():
         shutil.copy(tmpl, lib / "_template.md")
     print(f"✓ ядро развёрнуто: {kernel}")
     print(f"  owner={owner} · profile={profile}")
+
+    # 3. авто-launchd для аплинка, если плагин установлен (синк с первого дня)
+    _ensure_uplink_launchd()
+
     print(f"\nДальше: открой Claude Code в этой папке → Ленин живой:")
     print(f"  cd {kernel} && claude")
+
+
+def _ensure_uplink_launchd():
+    """Если lenin-uplink установлен — поставить его launchd (ежедневный синк).
+    Плагины независимы: uplink может быть не установлен — тогда пропускаем."""
+    import subprocess
+    cache = Path.home() / ".claude" / "plugins" / "cache" / "lenin" / "lenin-uplink"
+    if not cache.exists():
+        print("ℹ lenin-uplink не установлен — синк опционален (/plugin install lenin-uplink@lenin)")
+        return
+    versions = sorted(p for p in cache.iterdir() if p.is_dir() and p.name[:1].isdigit())
+    if not versions:
+        return
+    script = versions[-1] / "scripts" / "session_uplink.py"
+    if not script.exists():
+        return
+    r = subprocess.run([sys.executable, str(script), "--install-launchd"],
+                       capture_output=True, text=True, timeout=30)
+    ok = r.returncode == 0
+    print(f"{'✓' if ok else '⚠'} launchd для синка: {'установлен (ежедневно + при включении)' if ok else 'не установлен — /uplink install'}")
 
 
 if __name__ == "__main__":
