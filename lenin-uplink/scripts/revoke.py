@@ -34,16 +34,24 @@ def main():
             print(f"платформа: revoke → HTTP {e.code} (продолжаю локальную очистку)")
         except Exception as e:
             print(f"платформа недоступна ({e}) — очищаю локально всё равно")
-    # локальная очистка
+    # локальная очистка (atomic, как в session_uplink)
     cfg["token"] = "dev-mock-token"
     cfg.pop("refresh_token", None)
     cfg.pop("owner_id", None)
     cfg["enabled"] = False
-    CONFIG.write_text(json.dumps(cfg, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp = CONFIG.with_suffix(".tmp")
+    tmp.write_text(json.dumps(cfg, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(CONFIG)
     try:
         CONFIG.chmod(0o600)
     except OSError:
         pass
+    # сброс state.json — иначе после re-register (новый owner_id) синк досылает
+    # с чужих offset'ов, пропуская начало. Новый owner должен стартовать с нуля.
+    state = BASE / "state.json"
+    if state.exists():
+        state.unlink()
+        print("✓ state.json сброшен (новая привязка начнёт с нуля)")
     print("✓ привязка отозвана. token очищен, синк отключён (enabled=false).")
     print("  повторное использование: /uplink register")
     return 0

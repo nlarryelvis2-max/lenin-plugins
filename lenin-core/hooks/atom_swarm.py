@@ -6,14 +6,19 @@ Hook: UserPromptSubmit → reads JSON stdin → dispatches active atoms → retu
 Usage: echo '{"user_prompt":"...","session_id":"..."}' | python3 atom_swarm.py
 """
 import json, sys, os, re, random, math
+from _paths import kernel_dir
 
-ATOMS_DIR = os.path.join(os.path.dirname(__file__), '..', 'io_lab', 'rooy_capsule', '.claude', 'mind', 'atoms')
-ATOMS_DIR = os.path.normpath(ATOMS_DIR)
+# State в папке ядра владельца (writeable), не в read-only кэше плагина.
+_STATE_DIR = str(kernel_dir() / ".claude" / "lenin")
+os.makedirs(_STATE_DIR, exist_ok=True)
+
+ATOMS_DIR = os.path.join(os.path.dirname(__file__), 'atoms')  # bundled atom prompts (optional)
 SWARM_STATE_FILE = '/tmp/lenin_atom_swarm.json'
-DYNAMIC_ATOMS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dynamic_atoms.json')
+DYNAMIC_ATOMS_FILE = os.path.join(_STATE_DIR, 'dynamic_atoms.json')
 FEP_STATE_FILE = '/tmp/lenin_fep_prediction.json'
-MOMENTUM_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'atom_momentum.json')
+MOMENTUM_FILE = os.path.join(_STATE_DIR, 'atom_momentum.json')
 TRAJECTORY_FILE = '/tmp/lenin_trajectory.json'
+POSTERIOR_CACHE = os.path.join(_STATE_DIR, 'posterior_cache.json')  # единый путь с unified_posterior
 
 # Atom → card directory mapping for context loading
 ATOM_CARD_MAP = {
@@ -24,8 +29,7 @@ ATOM_CARD_MAP = {
     },
     'entrepreneur': {
         'dirs': ['library/projects/', 'library/people/'],
-        'pattern': ['biz_', 'MASTER_DOSSIER_rodion', 'MASTER_DOSSIER_lapshin',
-                     'MASTER_DOSSIER_liza', 'MASTER_DOSSIER_felix'],
+        'pattern': ['biz_', 'MASTER_DOSSIER_'],
         'label': 'Проекты и партнёры',
     },
     'builder': {
@@ -531,7 +535,7 @@ def mine_atoms_from_history(min_occurrences: int = 5) -> list[dict]:
       5. Only propose if cluster appears ≥ min_occurrences times
     """
     # Load history
-    cache_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'posterior_cache.json')
+    cache_path = POSTERIOR_CACHE
     if not os.path.exists(cache_path):
         return []
     try:
@@ -1198,7 +1202,7 @@ def dispatch(text):
     prompt_count = 0
     try:
         _hooks_dir = os.path.dirname(os.path.abspath(__file__))
-        cache_path = os.path.join(_hooks_dir, 'posterior_cache.json')
+        cache_path = POSTERIOR_CACHE
         if os.path.exists(cache_path):
             cache = json.loads(open(cache_path, encoding='utf-8').read())
             prompt_count = cache.get('calibration', {}).get('n_prompts_processed', 0) + 1
@@ -1308,7 +1312,7 @@ def main():
         # Periodically mine new atoms (every 50th prompt)
         try:
             _hooks_dir = os.path.dirname(os.path.abspath(__file__))
-            cache_path = os.path.join(_hooks_dir, 'posterior_cache.json')
+            cache_path = POSTERIOR_CACHE
             if os.path.exists(cache_path):
                 cache = json.loads(open(cache_path, encoding='utf-8').read())
                 n_prompts = cache.get('calibration', {}).get('n_prompts_processed', 0)
@@ -1529,7 +1533,7 @@ def main():
                     # Build weight history from posterior cache
                     weight_history = []
                     try:
-                        cache_path_h = os.path.join(_hooks_dir, 'posterior_cache.json')
+                        cache_path_h = POSTERIOR_CACHE
                         if os.path.exists(cache_path_h):
                             cache_h = json.loads(open(cache_path_h, encoding='utf-8').read())
                             for evt in cache_h.get('signal_history', [])[-10:]:

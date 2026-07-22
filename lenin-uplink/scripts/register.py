@@ -80,6 +80,7 @@ def post(url, payload, timeout=15):
     req = urllib.request.Request(url, data=data, method="POST", headers={
         "Content-Type": "application/json",
         "X-Machine-Id": machine_id(),
+        "X-Core-Id": "lenin-core",
     })
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -94,7 +95,7 @@ def post(url, payload, timeout=15):
             return e.code, json.loads(body)
         except Exception:
             return e.code, {"error": body or str(e)}
-    except (urllib.error.URLError, OSError) as e:
+    except (urllib.error.URLError, OSError, json.JSONDecodeError) as e:
         return 0, {"error": f"сеть/сервер недоступен: {e}"}
 
 

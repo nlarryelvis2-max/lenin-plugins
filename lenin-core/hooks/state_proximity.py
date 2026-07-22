@@ -22,7 +22,7 @@ DIMS = ["E", "C", "S", "P", "Ph", "T", "X", "M", "N", "A", "R", "I", "L", "G"]
 from _paths import kernel_dir
 ROOT = kernel_dir()  # папка ядра владельца
 OPTIMAL_PATH = ROOT / "hot" / "optimal_state.json"
-CACHE_PATH = ROOT / ".claude" / "hooks" / "posterior_cache.json"
+CACHE_PATH = ROOT / ".claude" / "lenin" / "posterior_cache.json"
 
 
 def cosine_similarity(a: dict, b: dict) -> float:

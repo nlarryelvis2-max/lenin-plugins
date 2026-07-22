@@ -20,7 +20,9 @@ def kernel_dir() -> Path:
         cfg = Path.home() / ".claude" / "lenin" / "config.json"
         k = json.loads(cfg.read_text(encoding="utf-8")).get("kernel")
         if k:
-            return Path(k).expanduser()
+            kp = Path(k).expanduser()
+            if kp.exists():  # фантомный/удалённый путь не плодим мусор
+                return kp
     except Exception:
         pass
     default = Path.home() / ".claude" / "lenin-kernel"

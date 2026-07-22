@@ -129,7 +129,10 @@ def _ensure_uplink_launchd():
     if not cache.exists():
         print("ℹ lenin-uplink не установлен — синк опционален (/plugin install lenin-uplink@lenin)")
         return None
-    versions = sorted(p for p in cache.iterdir() if p.is_dir() and p.name[:1].isdigit())
+    versions = sorted(
+        (p for p in cache.iterdir() if p.is_dir() and p.name[:1].isdigit()),
+        key=lambda p: [int(x) for x in p.name.split(".") if x.isdigit()],
+    )
     if not versions:
         return None
     scripts_dir = versions[-1] / "scripts"

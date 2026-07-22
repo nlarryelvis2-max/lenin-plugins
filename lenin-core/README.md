@@ -22,7 +22,7 @@
 Полный гайд: [`INSTALL.md`](INSTALL.md). Кратко:
 
 ```
-/plugin marketplace add https://lenin.nglain.com/plugins
+/plugin marketplace add https://github.com/nlarryelvis2-max/lenin-plugins.git
 /plugin install lenin-core@lenin
 /lenin setup        # онбординг: имя + профиль → разворачивает ядро
 ```
@@ -44,7 +44,7 @@ scripts/         setup.py (онбординг), doctor.py (health-check)
 ## Принцип
 
 **Ядро = данные владельца (личное, не раздаётся). Плагин = поведение (раздаётся).**
-Память Фила/создателя НЕ входит — у каждого владельца своя, с нуля.
+Память создателя НЕ входит — у каждого владельца своя, с нуля.
 
 ## Онбординг-профили
 
