@@ -270,8 +270,6 @@ STYLE_PATTERNS = {
                      r'\bмлн\b', r'\bмлрд\b', r'\bKPI\b', r'\bметрик\b',
                      r'\bворонк\b', r'\bконверси\b', r'\bлид\b', r'\bклиент\b',
                      r'\bподрядчик\b', r'\bкоманд\b', r'\bнайм\b', r'\bфинанс\b',
-                     r'\bРодион\b', r'\bАртём\b', r'\bФеликс\b', r'\bЛапшин\b',
-                     r'\bFREEC\b', r'\bЗависть\b', r'\bПолдень\b', r'\bПолночь\b',
                      r'\balignment\b', r'\bдоля\b', r'\bакци\b', r'\bдивиденд\b',
                      r'\bкэш\b', r'\bburn rate\b', r'\brunway\b'],
         'dims': {'P': 0.4, 'R': 0.3},  # projects + regulation/risk
@@ -1059,7 +1057,7 @@ def _trajectory_bonus(atom_name: str, trajectory: dict) -> float:
 
 
 def _apply_uptake_adj(thresholds):
-    """Промоушен uptake в поведение (Фил 2026-07-14): help_rate линзы сдвигает её порог.
+    """Промоушен uptake в поведение: help_rate линзы сдвигает её порог.
     Мягко, клампы [0.15,0.85], baseline не трогаем. Обратимо (удалить json = откат)."""
     try:
         adj_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uptake_threshold_adj.json')

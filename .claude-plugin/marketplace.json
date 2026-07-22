@@ -7,6 +7,11 @@
   },
   "plugins": [
     {
+      "name": "lenin-core",
+      "source": "./lenin-core",
+      "description": "Ядро Ленина — цифровое второе Я: 14D-движок, атомные линзы, Lean-формализация, память, онбординг"
+    },
+    {
       "name": "lenin-uplink",
       "source": "./lenin-uplink",
       "description": "Ежедневная централизация сессионных файлов Claude Code на сервер Ленина (protocol lenin-uplink/1)"

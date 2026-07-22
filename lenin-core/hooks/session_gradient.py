@@ -82,7 +82,7 @@ def load_posterior() -> dict | None:
 
     Fallback chain:
       1. posterior_cache.json (real-time, updated by atom_swarm + fep)
-      2. temporal_store.json (Phil's trajectory)
+      2. temporal_store.json (owner trajectory)
       3. trained_configs_full.json (batch training average)
       4. None → uniform
     """

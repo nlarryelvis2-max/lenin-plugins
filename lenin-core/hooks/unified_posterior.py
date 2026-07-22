@@ -128,7 +128,7 @@ class UnifiedPosterior:
         now = datetime.now().isoformat()
         return {
             "version": "3.0",
-            "user_id": "phil",
+            "user_id": owner(),
             "last_updated": now,
             "posterior_14d": posterior,
             "concentrations": concentrations,
@@ -138,7 +138,7 @@ class UnifiedPosterior:
                 "n_prompts_processed": 0,
                 "n_fep_observations": 0,
                 "total_observations": 0,
-                "last_phil_weekly": None,
+                "last_owner_weekly": None,
                 "avg_prediction_error": None,
                 "last_threshold_calibration": None,
             },
@@ -300,7 +300,7 @@ class UnifiedPosterior:
         w_reported = _normalize_simplex({d: likert.get(d, 5) for d in DIMS})
         counts = {d: w_reported[d] * 10.0 for d in DIMS}
         self._conjugate_update(counts)
-        self._data["calibration"]["last_phil_weekly"] = datetime.now().isoformat()
+        self._data["calibration"]["last_owner_weekly"] = datetime.now().isoformat()
         self._data["last_updated"] = datetime.now().isoformat()
         self.save()
 
@@ -461,8 +461,8 @@ class UnifiedPosterior:
                      'аддикц', 'эмпати', 'клиент', 'психотерап', 'CBT', 'MBCT',
                      'трансфер', 'контрперенос', 'сопротивлен', 'абьюз', 'границ'],
         "business": ['бюджет', 'прибыл', 'ROI', 'масштаб', 'выручк', 'инвести',
-                      'рынок', 'конкурент', 'партнёр', 'договор', 'миллион', 'FREEC',
-                      'Зависть', 'Полдень', 'Полночь', 'Лапшин', 'alignment',
+                      'рынок', 'конкурент', 'партнёр', 'договор', 'миллион',
+                      'alignment',
                       'подрядчик', 'команд', 'метрик', 'воронк', 'конверси'],
         "personal": ['мам', 'пап', 'бабушк', 'сын', 'доч', 'семь', 'люблю',
                       'боюсь', 'устал', 'хочу', 'мечт', 'счасть', 'одиночество',

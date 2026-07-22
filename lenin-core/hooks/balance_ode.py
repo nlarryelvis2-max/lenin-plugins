@@ -375,50 +375,12 @@ class BalanceODE:
 # ─── Pre-configured instances ───
 
 def lenin_default() -> BalanceODE:
-    """Create a BalanceODE pre-configured with Ленин projects and contacts."""
-    ode = BalanceODE()
+    """Create an empty BalanceODE. Владелец наполняет своими проектами/контактами:
+    ode.register_project("<name>", {"P":0.8,"A":0.7,...}, activity=0.7)
+    ode.register_contact("<name>", {"E":0.7,...}, coupling=0.3)
+    """
+    return BalanceODE()
 
-    # Projects (14D profiles from empirical data)
-    ode.register_project("Сикорский", {
-        "P": 0.8, "A": 0.7, "R": 0.6, "M": 0.5, "G": 0.4, "E": 0.2
-    }, activity=0.7)
-    ode.register_project("FREEC", {
-        "P": 0.7, "A": 0.6, "E": 0.5, "T": 0.4, "S": 0.3, "M": 0.5
-    }, activity=0.6)
-    ode.register_project("Полдень·Полночь", {
-        "P": 0.6, "M": 0.5, "A": 0.5, "T": 0.4, "G": 0.3, "L": 0.3
-    }, activity=0.4)
-    ode.register_project("Терапия", {
-        "S": 0.8, "E": 0.7, "N": 0.5, "P": 0.4, "X": 0.3, "C": 0.4
-    }, activity=0.8)
-    ode.register_project("Ядро Ленин", {
-        "M": 0.9, "C": 0.7, "N": 0.5, "I": 0.5, "L": 0.4, "A": 0.4
-    }, activity=0.5)
-
-    # External contacts
-    ode.register_contact("Феликс", {
-        "E": 0.7, "T": 0.6, "S": 0.5, "P": 0.4, "A": 0.3
-    }, coupling=0.4)
-    ode.register_contact("Лапшин", {
-        "P": 0.8, "A": 0.6, "R": 0.5, "G": 0.4, "M": 0.3
-    }, coupling=0.3)
-    ode.register_contact("Алиса", {
-        "R": 0.7, "A": 0.6, "P": 0.5, "M": 0.4, "C": 0.3
-    }, coupling=0.3)
-    ode.register_contact("Родион", {
-        "P": 0.6, "A": 0.5, "R": 0.4, "G": 0.5, "S": 0.3
-    }, coupling=0.3)
-    ode.register_contact("Денис", {
-        "A": 0.7, "P": 0.5, "R": 0.6, "M": 0.4, "C": 0.3
-    }, coupling=0.25)
-    ode.register_contact("Руся", {
-        "E": 0.6, "S": 0.5, "A": 0.4, "P": 0.5, "C": 0.3
-    }, coupling=0.35)
-    ode.register_contact("Антон", {
-        "C": 0.5, "A": 0.5, "M": 0.3, "P": 0.4, "L": 0.3
-    }, coupling=0.2)
-
-    return ode
 
 
 if __name__ == "__main__":
@@ -429,7 +391,7 @@ if __name__ == "__main__":
     print()
 
     # Simulate: inject a business signal
-    print("--- After Сикорский discussion ---")
+    print("--- After business discussion ---")
     result = ode.full_step(signal={"P": 2.0, "A": 1.5, "R": 1.0, "M": 0.8})
     h = result["hemisphere"]
     print(f"  Balance index: {h['balance_index']}")

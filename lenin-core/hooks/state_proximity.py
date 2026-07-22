@@ -164,49 +164,11 @@ def compute_proximity(current: dict, optimal: dict) -> dict:
     }
 
 
-# Open threads mapped to primary dims for specific recommendations
-THREAD_MAP = {
-    "Полдень·Полночь": {
-        "dims": ["P", "A", "M", "G"],
-        "action": "Полдень·Полночь: созвон с Лапшиным (масштаб, бюджет, digital-first)",
-        "source": "library/projects/pp/",
-    },
-    "Сикорский": {
-        "dims": ["P", "A", "R"],
-        "action": "Сикорский: связаться с Русудан → scope/оплата ДО Феликса",
-        "source": "library/people/rusudan_mironova.md",
-    },
-    "FREEC": {
-        "dims": ["P", "A", "G", "R"],
-        "action": "FREEC: уточнить у Артёма — какой AI-продукт? Почему 60%?",
-        "source": "Ядро_Ленин/FREEC_PR_Strategy_Lenin/",
-    },
-    "Феликс": {
-        "dims": ["P", "S", "A", "R"],
-        "action": "Феликс: финализировать ТЗ → обсудить документы Лапшина",
-        "source": "Ядро_Ленин/FREEC_PR_Strategy_Lenin/31_FELIX_TZ_FINAL.md",
-    },
-    "Педагогический мост": {
-        "dims": ["M", "L", "G", "I"],
-        "action": "Педмост: добавить ≥6 точек phil_weekly для S23-S25 валидации",
-        "source": "library/formal/pedagogical_bridge.md",
-    },
-    "H1/H2 clinical": {
-        "dims": ["I", "N", "T", "M"],
-        "action": "H1/H2: нужны clinical pre/post данные пациентов",
-        "source": "hot/now.md (Гипотезы)",
-    },
-    "F9/F10": {
-        "dims": ["T", "I", "L"],
-        "action": "F9: еженедельная запись (sealed до 18.08)",
-        "source": "hot/now.md (F9)",
-    },
-    "phil_weekly": {
-        "dims": ["M", "I", "G", "L"],
-        "action": "phil_weekly: добавить ещё ≥5 точек для S23-S25",
-        "source": "library/formal/pedagogical_bridge.md",
-    },
-}
+# Open threads mapped to primary dims for specific recommendations.
+# Пустой по умолчанию — владелец наполняет своими открытыми задачами/проектами.
+# Формат: "<название>": {"dims": [...], "action": "...", "source": "..."}
+THREAD_MAP = {}
+
 
 
 def recommend_tasks(proximity: dict) -> list[dict]:
