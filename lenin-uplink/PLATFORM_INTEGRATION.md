@@ -138,27 +138,61 @@ GET https://lenin.nglain.com/v1/uplink/health
 → { "status": "ok", "proto": "lenin-uplink/1", "uptime_s": 12345 }
 ```
 
+### Endpoint 5 — `POST /api/token/refresh` (продление access token)
+
+Когда access token истёк (401 от `/v1/uplink/sessions`), клиент обновляет его
+через refresh_token — без повторного device-flow.
+
+```json
+POST https://lenin.nglain.com/api/token/refresh
+Content-Type: application/json
+{ "refresh_token": "<из device-flow ответа>" }
+
+→ 200: { "token": "<новый access>", "refresh_token": "<ротация, новый>", "expires_in": 3600 }
+→ 401: { "error": "invalid_grant" }   ← refresh_token тоже истёк/отозван → клиент: /uplink register
+```
+
+- **Rotate refresh tokens** (OAuth best practice): каждый refresh выдаёт НОВЫй
+  refresh_token, старый инвалидируется. Защита от утечки.
+- refresh_token long-lived (недели/месяцы), access short-lived (`expires_in`).
+- Один refresh_token → одна ротация (нельзя переиспользовать старый).
+- При `401 invalid_grant` клиент просит юзера `/uplink register` (новый device flow).
+
+### Endpoint 6 — `POST /api/revoke` (отзыв, right to erasure)
+
+```json
+POST https://lenin.nglain.com/api/revoke
+Authorization: Bearer <token>          ← тот, что отзываем
+→ 200: { "revoked": true }
+```
+
+- Инвалидирует access + refresh токены для этого устройства.
+- После отзыва `/v1/uplink/sessions` с этим token → `403`.
+- Вызывается командой `/uplink unregister` (клиент: платформа revoke + локально
+  очищает token, `enabled:false`).
+- Право юзера отозвать доступ устройства (GDPR Art.17 / OAuth revocation).
+
 ## Безопасность
 
 - **Только TLS** на реальном сервере (мок — localhost).
 - Token = secret. Хранится у юзера в `~/.claude/lenin_uplink/config.json` (chmod 600).
 - Ручка **write-only** (GET сессий нет — утёкший token не даёт прочитать чужое).
-- Revocation (right to erasure / GDPR Art.17): платформа умеет отозвать token → `403`.
-  Плагин при `403` выставляет `enabled: false` (сейчас вручную, v2 — авто).
+- Revocation (right to erasure / GDPR Art.17): платформа умеет отозвать token (`/api/revoke`) → `403`.
+  Плагин при `403` **автоматически** выставляет `enabled: false` (реализовано).
+- Token rotation: access short-lived + refresh с ротацией (`/api/token/refresh`).
 - Сессии = personal_special (там личное юзеров). По канону data-exchange-ethics:
   платформа = хранилище для самого юзера, доступ к его данным — только его.
 
-## Что доработать в плагине (на стороне lenin-uplink)
+## Что реализовано в плагине (lenin-uplink, готово)
 
-Чтобы `/lenin setup` делал шаги 3–5 автоматически:
-
-1. **`scripts/register.py`** (готов) — device flow (RFC 8628 + PKCE): `/api/device/code`
-   → показать `verification_uri_complete` → poll `/api/device/token` →
-   пишет `token`/`refresh_token`/`owner_id`/`endpoint` в `config.json`.
-2. **`commands/uplink.md`** — добавить `/uplink register` (и вызов из setup).
-3. **`scripts/setup.py`** (lenin-core) — после развёртывания ядра, если uplink
-   установлен И endpoint = мок (не настроен) → вызвать `register.py` авто.
-4. **`scripts/session_uplink.py`** — при `403` от сервера → `enabled: false` (auto-disable).
+1. **`scripts/register.py`** — device flow (RFC 8628 + PKCE): `/api/device/code`
+   → показать `verification_uri_complete` → poll `/api/device/token` (state machine)
+   → пишет `token`/`refresh_token`/`owner_id`/`endpoint` в `config.json`.
+2. **`scripts/session_uplink.py`** — при `401` → `/api/token/refresh` + retry; при
+   `403` → `enabled:false` (auto-disable); идемпотентный синк.
+3. **`scripts/revoke.py`** (`/uplink unregister`) — `/api/revoke` + локальная очистка.
+4. **`scripts/setup.py`** (lenin-core) — после развёртывания ядра, если uplink стоит
+   И token моковый → авто-register.
 
 > Доработку плагина делаю по готовности endpoints на платформе. Контракт
 > (`UPLINK_CONTRACT.md`) и мок-эталон (`uplink_mock_server.py`) уже есть —
@@ -177,7 +211,8 @@ GET https://lenin.nglain.com/v1/uplink/health
 - [ ] Отклонение абсолютных путей / `..`.
 - [ ] Append-only хранилище `<owner>/<machine>/<path>`.
 - [ ] Журнал приёмов.
-- [ ] Revocation → `403`.
+- [ ] `POST /api/token/refresh` — ротация refresh_token, `expires_in`, `401 invalid_grant` при истёкшем.
+- [ ] `POST /api/revoke` — отзыв access+refresh → последующие запросы `403`.
 - [ ] (опц.) `GET /v1/uplink/health`.
 - [ ] Прогон `test_uplink.py` против реального endpoint (скиньте URL+test-token —
       проверю интеграцию вживую).
