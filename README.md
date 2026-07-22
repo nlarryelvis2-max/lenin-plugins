@@ -11,8 +11,9 @@
 
 - Веб-версия Lenin получает личный контекст пользователя и контекст выбранного
   проекта, а доступные материалы открывает по мере необходимости.
-- Lenin Client хранит на Mac отдельное личное ядро и его память. Контекст
-  проектов и данные других участников в публичный клиент не копируются.
+- Lenin Client хранит на Mac отдельное личное ядро и его память. После
+  одноразовой привязки он read-only открывает живое пространство назначенных
+  пользователю проектов; сами проекты и данные команды на Mac не копируются.
 - Uplink после явного согласия доставляет сырые Claude Code sessions в личный
   архив платформы. Они не становятся памятью или знаниями проекта
   автоматически.
@@ -35,6 +36,19 @@ claude plugin marketplace add nlarryelvis2-max/lenin-plugins && claude plugin in
 
 5. Необязательно: на платформе разрешить приватную синхронизацию, получить
 одноразовый код и выполнить показанную команду `/lenin-client:setup <код>`.
+
+Чтобы работать с назначенными проектами из Terminal, в Профиль → Клиент Ленина
+нажать **Получить код** и выполнить:
+
+```text
+/lenin-client:projects connect <lpc_…>
+```
+
+После этого `/lenin-client:projects` показывает доступные проекты, а
+`/lenin-client:projects HomeOS` открывает канонические документы, участников,
+задачи, материалы, capabilities и последние сообщения командного чата.
+Project token хранится в macOS Keychain, не печатается и разрешает только
+чтение product API.
 
 Код действует 10 минут и используется один раз. Платформа возвращает Uplink
 token напрямую локальному скрипту. Token сохраняется в
@@ -60,6 +74,8 @@ lenin-client
 - `lenin-core` разворачивает личное ядро в `~/.claude/lenin-kernel`.
 - `lenin-uplink` отправляет только новые полные JSONL-строки из
   `~/.claude/projects/**/*.jsonl`.
+- `client/scripts/projects.py` читает живой project workspace с повторной
+  серверной проверкой user status и grants; локальный project mirror не создаёт.
 - До регистрации одноразовым кодом Uplink выключен и не запускает фоновую
   отправку.
 - launchd запускает Uplink ежедневно и при включении Mac.
@@ -86,7 +102,7 @@ lenin-client
 
 | Поверхность | Версия |
 |---|---:|
-| `lenin-client` | 0.1.1 |
+| `lenin-client` | 0.2.0 |
 | `lenin-core` | 0.1.5 |
 | `lenin-uplink` | 1.1.4 |
 | протокол | `lenin-uplink/1` |
@@ -98,6 +114,7 @@ lenin-client
 
 ```bash
 claude plugin validate .
+python3 -m unittest discover -s client/scripts -p 'test_*.py' -v
 python3 -m unittest discover -s lenin-uplink/scripts -p 'test_*.py' -v
 ```
 
