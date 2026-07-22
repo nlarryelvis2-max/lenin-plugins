@@ -55,6 +55,7 @@ PLIST = HOME / "Library" / "LaunchAgents" / "com.lenin.session-uplink.plist"
 
 DEFAULT_CONFIG = {
     "enabled": True,
+    "platform_url": "https://lenin.nglain.com",
     "endpoint": "http://127.0.0.1:8787/v1/uplink/sessions",
     "token": "dev-mock-token",
     "owner_id": "owner",
@@ -87,6 +88,11 @@ def save_json(path: Path, data) -> None:
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
     tmp.replace(path)
+    if path.name == "config.json":
+        try:
+            path.chmod(0o600)  # token = secret
+        except OSError:
+            pass
 
 
 def load_config() -> dict:

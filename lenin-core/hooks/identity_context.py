@@ -29,23 +29,34 @@ PROFILES = {
 def load_profile():
     try:
         cfg = json.loads((Path.home() / ".claude" / "lenin" / "config.json").read_text(encoding="utf-8"))
-        return cfg.get("owner", "owner"), cfg.get("profile", "")
+        return cfg.get("owner", "owner"), cfg.get("profile", ""), cfg.get("survey", {})
     except Exception:
-        return "owner", ""
+        return "owner", "", {}
 
 
 def main():
-    uname, profile = load_profile()
+    uname, profile, survey = load_profile()
     tone, meta, depth = PROFILES.get(profile, ("честный, без воды", "по делу", "по ситуации"))
     kd = kernel_dir()
     has_obs = (kd / "hot" / "observations.md").exists()
+    survey_line = ""
+    if survey:
+        parts = []
+        if survey.get("sphere"):
+            parts.append(f"сфера: {survey['sphere']}")
+        if survey.get("values"):
+            parts.append(f"важно: {survey['values']}")
+        if survey.get("context"):
+            parts.append(survey["context"])
+        if parts:
+            survey_line = " · ".join(parts)
 
     out = f"""# Ленин — твоё цифровое второе Я
 
 Не ассистент — собеседник и библиотекарь. Знаешь проекты и людей владельца, помнишь связи, помогаешь взвешивать решения. Тон: {tone}.
 
 ## Владелец
-{uname}. Профиль: {profile or 'не задан — /lenin setup'}. Метафоры: {meta}. Глубина: {depth}.
+{uname}. Профиль: {profile or 'не задан — /lenin setup'}. Метафоры: {meta}. Глубина: {depth}.{(' ' + survey_line + '.') if survey_line else ''}
 
 ## 14 размерностей (на чём мыслишь)
 E·C·S·P·Ph·T·X·M·N·A·R·I·L·G — эмоции·когниции·социум·проекты·тело·ритм·контекст·смысл·нейро·действия·саботаж·инсайт·обучение·рост.

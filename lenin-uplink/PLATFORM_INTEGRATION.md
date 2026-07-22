@@ -16,50 +16,96 @@
 
 ```
 1. Юзер: /plugin install lenin-core@lenin + lenin-uplink@lenin
-2. Юзер: /lenin setup   (спрашивает имя + профиль)
-3. Плагин: POST https://lenin.nglain.com/api/uplink/register
-           {owner_name, core_id, machine_id}
-4. Платформа: создаёт user (owner_id), генерит token, возвращает:
-              {owner_id, token, endpoint}
-5. Плагин: пишет token+owner_id+endpoint в ~/.claude/lenin_uplink/config.json
-6. launchd (уже стоит) ежедневно шлёт сессии → POST {endpoint} → платформа принимает
+2. Юзер: /lenin setup   (спрашивает имя + профиль + анкета холодного старта)
+3. Плагин: POST {platform}/api/device/code {code_challenge(PKCE)} → user_code + URL
+4. Юзер: открывает verification_uri_complete, логинится, подтверждает устройство
+5. Плагин: poll POST {platform}/api/device/token {device_code, code_verifier}
+           → {token, refresh_token, owner_id, endpoint}
+6. Плагин: пишет token+owner_id+endpoint в ~/.claude/lenin_uplink/config.json
+7. launchd (уже стоит) ежедневно шлёт сессии → POST {endpoint} → платформа принимает
 ```
+
+Шаги 3–6 — **новые** (сейчас юзер вписывает token руками через `/uplink setup`).
+Device flow делает онбординг **бесшовным и безопасным** (плагин не видит учётки,
+токен привязан к залогиненному юзеру на платформе).
 
 Шаги 3–5 — **новые** (сейчас юзер вписывает token вручную через `/uplink setup`).
 Авто-регистрация делает онбординг бесшовным.
 
 ## Что платформе реализовать
 
-### Endpoint 1 — `POST /api/uplink/register` (НОВЫЙ, онбординг)
+### Endpoint 1+2 — **Device authorization flow** (RFC 8628 + PKCE) — онбординг
 
-Создаёт юзера + выписывает токен. Вызывается плагином один раз при `/lenin setup`.
+Безопасная привязка плагина к аккаунту: плагин НЕ отправляет учётных данных.
+Юзер логинится на платформе и подтверждает устройство коротким кодом. Два endpoint'а:
+
+#### 1a. `POST /api/device/code` — выдать код
 
 **Запрос:**
 ```json
-POST https://lenin.nglain.com/api/uplink/register
-Content-Type: application/json
-{ "owner_name": "<имя юзера>",
-  "core_id": "lenin-core",
-  "machine_id": "<LocalHostName>",
-  "profile": "psych|cfo|ops|builder|designer|athlete" }
+POST https://lenin.nglain.com/api/device/code
+Content-Type: application/json · X-Machine-Id: <LocalHostName>
+{ "core_id": "lenin-core",
+  "code_challenge": "<base64url(SHA256(code_verifier))>",
+  "code_challenge_method": "S256" }
 ```
+`code_verifier` генерит плагин (32 random bytes → base64url); challenge — S256.
+Это PKCE: даже если `device_code` перехвачен, без `code_verifier` токен не получить.
 
 **Ответ 200:**
 ```json
-{ "owner_id": "<платформенный id, напр. usr_abc123>",
-  "token": "< bearer-токен, long-lived, скоуп = (owner, core) >",
-  "endpoint": "https://lenin.nglain.com/v1/uplink/sessions" }
+{ "device_code": "<128+ бит, random>",
+  "user_code": "ABCD-WXYZ",
+  "verification_uri": "https://lenin.nglain.com/device",
+  "verification_uri_complete": "https://lenin.nglain.com/device?code=ABCD-WXYZ",
+  "expires_in": 600,
+  "interval": 5 }
+```
+- `user_code` — короткий, **без ambiguous символов** (нет I/O/0/1), алфавит
+  `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`, формат `XXXX-XXXX` (RFC 8628 §6.1).
+- `verification_uri_complete` — URL с кодом вшитым (юзер кликает, не вводит).
+- `interval` — минимальные секунды между poll (рекомендация RFC: 5).
+- Rate-limit: жёстко на этот endpoint (публичный).
+
+#### 1b. `POST /api/device/token` — poll (плагин крутит раз в `interval`)
+
+**Запрос:**
+```json
+POST https://lenin.nglain.com/api/device/token
+{ "device_code": "<из 1a>",
+  "code_verifier": "< PKCE: доказательство владения challenge из 1a >" }
 ```
 
-Логика:
-- `owner_name` → человекочитаемое, не id. Платформа генерит `owner_id` (stable, UUID/slug).
-- Один owner × много machines = один token (машины различаются по `machine_id` в заголовках).
-- Token хранится хэшированным (как пароль). При потере — перевыпуск через UI платформы.
-- Идемпотентность: повторный register с тем же `owner_name`+`machine_id` → вернуть
-  существующий token (или 409 + инструкция перевыпуска). Решить политику.
-- Rate-limit: жёстко (1 register/мин с IP) — публичный endpoint.
+**Ответы (RFC 8628 §3.5 — polling state machine):**
+| Состояние | HTTP | body | Действие плагина |
+|---|---|---|---|
+| юзер ещё не подтвердил | 202 (или 400) | `{"error":"authorization_pending"}` | ждать `interval`, повторить |
+| сервер перегружен | 400 | `{"error":"slow_down"}` | `interval += 5`, повторить |
+| юзер подтвердил | **200** | `{"token","refresh_token","owner_id","endpoint","expires_in"}` | **записать в config, успех** |
+| код истёк | 400 | `{"error":"expired_token"}` | стоп, попросить re-register |
+| юзер отказал | 400 | `{"error":"access_denied"}` | стоп |
 
-### Endpoint 2 — `POST /v1/uplink/sessions` (ПРИЁМ, по контракту)
+**Ответ 200 (успех):**
+```json
+{ "token": "<access, long-lived или expires_in сек>",
+  "refresh_token": "< для продления без повторного device-flow >",
+  "owner_id": "<платформенный id юзера>",
+  "endpoint": "https://lenin.nglain.com/v1/uplink/sessions",
+  "expires_in": 3600 }
+```
+- `token` хранится хэшированным на сервере (как пароль). Скоуп = `(owner, core)`.
+- Один owner × много machines = один token (машины различаются по `X-Machine-Id`).
+- PKCE-проверка: сервер сверяет `S256(code_verifier) == code_challenge` из 1a;
+  несовпадение → `400 invalid_grant`.
+- `refresh_token` — опц., для бесшовного продления (когда `expires_in` истечёт).
+
+#### UX на платформе
+- Страница `/device` — юзер вводит `user_code` (или заходит по `verification_uri_complete`,
+  где код уже подставлен) → логин (если не залогинен) → **consent-экран**: «Разрешить
+  этому устройству (Machine-Id) отправлять сессии Ленина?» → подтвердить/отказать.
+- После подтверждения плагин получает token на следующем poll'е.
+
+### Endpoint 3 — `POST /v1/uplink/sessions` (ПРИЁМ, по контракту)
 
 Полная спека в [`UPLINK_CONTRACT.md`](UPLINK_CONTRACT.md). Кратко:
 
@@ -85,7 +131,7 @@ append/дубль/дыру — см. §4 контракта).
 - Журнал приёмов (когда/кто/сколько).
 - Revocation: помеченный token → `403`.
 
-### Endpoint 3 — `GET /v1/uplink/health` (опц., мониторинг)
+### Endpoint 4 — `GET /v1/uplink/health` (опц., мониторинг)
 
 ```json
 GET https://lenin.nglain.com/v1/uplink/health
@@ -106,8 +152,9 @@ GET https://lenin.nglain.com/v1/uplink/health
 
 Чтобы `/lenin setup` делал шаги 3–5 автоматически:
 
-1. **`scripts/register.py`** (новый) — `POST /api/uplink/register` →
-   пишет `token`/`owner_id`/`endpoint` в `config.json`.
+1. **`scripts/register.py`** (готов) — device flow (RFC 8628 + PKCE): `/api/device/code`
+   → показать `verification_uri_complete` → poll `/api/device/token` →
+   пишет `token`/`refresh_token`/`owner_id`/`endpoint` в `config.json`.
 2. **`commands/uplink.md`** — добавить `/uplink register` (и вызов из setup).
 3. **`scripts/setup.py`** (lenin-core) — после развёртывания ядра, если uplink
    установлен И endpoint = мок (не настроен) → вызвать `register.py` авто.
@@ -119,7 +166,11 @@ GET https://lenin.nglain.com/v1/uplink/health
 
 ## Чек-лист для агента платформы
 
-- [ ] `POST /api/uplink/register` — создать user, выдать token (hashed), rate-limit.
+- [ ] `POST /api/device/code` — PKCE-challenge, выдать user_code (без I/O/0/1) +
+      verification_uri_complete, rate-limit.
+- [ ] `POST /api/device/token` — poll, PKCE-verify (S256), state machine
+      (authorization_pending/slow_down/expired_token/access_denied/200), refresh_token.
+- [ ] Страница `/device` — ввод кода (или auto из `?code=`), login, consent-экран.
 - [ ] `POST /v1/uplink/sessions` — gzip-тело, Bearer-auth, append по правилу 3 случаев
       (§4 контракта), ответ `{accepted, files:{path:next_offset}}`.
 - [ ] sha256-проверка чанков.
@@ -174,9 +225,9 @@ GET https://lenin.nglain.com/v1/uplink/health
 
 ## 3. (После register) Кнопка «Создать аккаунт»
 
-Когда `POST /api/uplink/register` готов — страница либо ведёт юзера на `/lenin setup`
-(плагин сам зарегистрирует — **бесшовно**), либо создаёт аккаунт в UI и показывает
-token для ручного ввода. Рекомендую первый вариант.
+Когда device-flow endpoints готовы — `/lenin setup` сам крутит flow (показывает код →
+юзер подтверждает на платформе → токен в config). Страница `/device` = ввод кода +
+login + consent. **Бесшовно и безопасно.**
 
 ## Что есть готового (переиспользовать)
 

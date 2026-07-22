@@ -1,6 +1,6 @@
 {
   "name": "lenin-core",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Ядро Ленина — цифровое второе Я: 14D-движок, атомные линзы, Lean-формализация, память. Поставляет поведение; личные данные владельца не входят.",
   "author": { "name": "lenin-ecosystem" },
   "keywords": ["lenin", "core", "14d", "second-self", "second-brain"]
