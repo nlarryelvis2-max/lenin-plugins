@@ -73,7 +73,7 @@ def absolute_endpoint(registration: dict, config: dict) -> str:
 def register(code: str) -> dict:
     setup_code = str(code or "").strip()
     if not setup_code.startswith("lsc_") or len(setup_code) > 128:
-        raise ValueError("нужен действующий одноразовый код lsc_… из Профиль → Lenin Client")
+        raise ValueError("нужен действующий одноразовый код lsc_… из раздела «Установить Ленина» на платформе")
     config = load_config()
     body = json.dumps({"code": setup_code, "machine_id": machine_id()}).encode("utf-8")
     request = urllib.request.Request(
@@ -113,7 +113,7 @@ def register(code: str) -> dict:
 
 def main() -> int:
     if len(sys.argv) != 2:
-        print("Получите одноразовый код в Профиль → Lenin Client на приватной платформе.")
+        print("Получите одноразовый код в разделе «Установить Ленина» на приватной платформе.")
         print("Затем выполните: /lenin-client:uplink register <код>")
         return 2
     try:

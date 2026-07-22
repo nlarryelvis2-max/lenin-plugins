@@ -7,7 +7,7 @@
 
 ```text
 1. Пользователь входит в платформу.
-2. Профиль → Lenin Client → consent → одноразовый lsc_… код.
+2. Меню профиля → **Установить Ленина** → consent → одноразовый lsc_… код.
 3. Пользователь устанавливает lenin-client@lenin.
 4. /lenin-client:setup <код>
 5. POST /api/uplink/register { code, machine_id }

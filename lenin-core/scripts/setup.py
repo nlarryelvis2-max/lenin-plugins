@@ -187,10 +187,10 @@ def _maybe_register(uplink_scripts_dir, setup_code=None):
         return True
     code = str(setup_code or "").strip()
     if not code:
-        print("ℹ Uplink пока не подключён — получите код в Профиль → Lenin Client на платформе")
+        print("ℹ Uplink пока не подключён — получите код в разделе «Установить Ленина» на платформе")
         return False
     if not code.startswith("lsc_"):
-        print("⚠ неверный одноразовый код — ожидается код из Профиль → Lenin Client")
+        print("⚠ неверный одноразовый код — ожидается код из раздела «Установить Ленина» на платформе")
         return False
     register = uplink_scripts_dir / "register.py"
     if not register.exists():
@@ -199,7 +199,7 @@ def _maybe_register(uplink_scripts_dir, setup_code=None):
     try:
         result = subprocess.run([sys.executable, str(register), code], timeout=60)
         if result.returncode != 0:
-            print("⚠ Uplink не подключён — получите новый код в Профиль → Lenin Client")
+            print("⚠ Uplink не подключён — получите новый код в разделе «Установить Ленина» на платформе")
             return False
         return True
     except subprocess.TimeoutExpired:
