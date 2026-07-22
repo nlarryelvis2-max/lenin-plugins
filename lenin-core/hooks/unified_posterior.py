@@ -25,7 +25,10 @@ from _paths import kernel_dir, owner
 HOOKS_DIR = Path(__file__).resolve().parent
 ROOT = kernel_dir()
 _STORE_DIR = ROOT / ".claude" / "lenin"
-_STORE_DIR.mkdir(parents=True, exist_ok=True)
+try:
+    _STORE_DIR.mkdir(parents=True, exist_ok=True)
+except OSError:
+    pass  # read-only/degraded — posterior живёт в памяти, не крашим импорт
 STORE_PATH = _STORE_DIR / "posterior_cache.json"
 LOCK_PATH = _STORE_DIR / "posterior_cache.lock"
 

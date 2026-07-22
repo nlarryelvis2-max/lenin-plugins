@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """session_uplink.py — ежедневная централизация сессионных файлов Claude Code.
 
-Задумка (Фил, 2026-07-17): каждый Мак с Лениным раз в день (или при включении /
+Задумка: каждый Мак с Лениным раз в день (или при включении /
 первом заходе в Ленин) отправляет НОВОЕ из ~/.claude/projects/**/*.jsonl на
 центральный сервер для пост-обработки. Ручка сервера пока dummy-макет
 (uplink_mock_server.py); реальная подставляется одной строкой в config.json.
@@ -74,6 +74,12 @@ def now_iso() -> str:
 
 def log(msg: str) -> None:
     BASE.mkdir(parents=True, exist_ok=True)
+    try:  # простая ротация: log > 5MB → оставляем хвост 1MB
+        if LOG_F.exists() and LOG_F.stat().st_size > 5 * 1024 * 1024:
+            tail = LOG_F.read_bytes()[-1024 * 1024:]
+            LOG_F.write_bytes(b"... (rotated) ...\n" + tail)
+    except OSError:
+        pass
     with LOG_F.open("a", encoding="utf-8") as f:
         f.write(f"{now_iso()} {msg}\n")
 
@@ -187,9 +193,12 @@ def scan_pending(state: dict, max_chunk: int, only: str | None = None) -> list[d
             offset = 0  # файл пересоздан/усечён — перечитываем с нуля
         if size <= offset:
             continue
-        with p.open("rb") as f:
-            f.seek(offset)
-            data = f.read(max_chunk)
+        try:
+            with p.open("rb") as f:
+                f.seek(offset)
+                data = f.read(max_chunk)
+        except OSError:
+            continue  # активная сессия удалила/ротировала .jsonl между stat и open
         # резать только по границе строки — активная сессия дописывается
         nl = data.rfind(b"\n")
         if nl < 0:
@@ -206,7 +215,8 @@ def scan_pending(state: dict, max_chunk: int, only: str | None = None) -> list[d
     return chunks
 
 
-def post_batch(cfg: dict, mid: str, batch: list[dict]) -> dict:
+def post_batch(cfg: dict, mid: str, batch: list[dict]):
+    """Возвращает (status, data). status 200 = data ответ; иначе data = {error}."""
     body = {
         "proto": "lenin-uplink/1",
         "owner_id": cfg.get("owner_id", "unknown"),
@@ -227,8 +237,41 @@ def post_batch(cfg: dict, mid: str, batch: list[dict]) -> dict:
         "X-Core-Id": cfg["core_id"],
         "X-Machine-Id": mid,
     })
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            return resp.status, json.loads(resp.read().decode("utf-8") or "{}")
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, json.loads(e.read().decode("utf-8") or "{}")
+        except Exception:
+            return e.code, {"error": "http_error"}
+    except (urllib.error.URLError, OSError, json.JSONDecodeError) as e:
+        return 0, {"error": f"сеть/сервер: {e}"}
+
+
+def refresh_access_token() -> bool:
+    """При истёкшем access token — обновить через refresh_token. True если обновилось."""
+    cfg = load_config()
+    rt = cfg.get("refresh_token")
+    if not rt:
+        return False
+    base = cfg.get("platform_url", "https://lenin.nglain.com").rstrip("/")
+    req = urllib.request.Request(base + "/api/token/refresh",
+                                 data=json.dumps({"refresh_token": rt}).encode("utf-8"),
+                                 method="POST", headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8") or "{}")
+    except Exception:
+        return False
+    if "token" not in data:
+        return False
+    cfg["token"] = data["token"]
+    if data.get("refresh_token"):
+        cfg["refresh_token"] = data["refresh_token"]
+    save_json(CONFIG_F, cfg)
+    log("token refreshed")
+    return True
 
 
 def run(dry: bool, max_mb: float | None, only: str | None = None) -> int:
@@ -272,15 +315,34 @@ def run(dry: bool, max_mb: float | None, only: str | None = None) -> int:
             total_files += len(batch)
             # dry-run не двигает state — показываем только первый круг
             break
-        try:
-            resp = post_batch(cfg, mid, batch)
-        except (urllib.error.URLError, OSError, json.JSONDecodeError) as e:
-            log(f"FAIL post: {e}")
-            print(f"uplink: ошибка отправки ({e}); state не сдвинут, повторим в следующий раз")
+        status, resp = post_batch(cfg, mid, batch)
+        if status == 401:
+            # access token истёк — пробуем refresh и retry один раз
+            if refresh_access_token():
+                cfg = load_config()  # подхватить новый token
+                status, resp = post_batch(cfg, mid, batch)
+            if status == 401:
+                log("FAIL 401 after refresh — нужен re-register")
+                print("uplink: token недействителен. Запусти /lenin-client:uplink register с новым кодом.")
+                save_json(STATE_F, state)
+                return 1
+        if status == 403:
+            # token отозван — отключаем синк, чтобы не долбиться
+            cfg = load_config()
+            cfg["enabled"] = False
+            save_json(CONFIG_F, cfg)
+            log("FAIL 403 — token отозван, синк отключён")
+            print("uplink: token отозван платформой (403). Синк отключён; для нового подключения получите setup-код.")
             save_json(STATE_F, state)
             return 1
-        if not resp.get("accepted"):
-            log(f"FAIL server rejected: {resp}")
+        if status == 0:
+            log(f"FAIL post: {resp.get('error')}")
+            print(f"uplink: {resp.get('error', 'ошибка')}; state не сдвинут, повторим в следующий прогон")
+            save_json(STATE_F, state)
+            return 1
+        if status != 200 or not resp.get("accepted"):
+            log(f"FAIL server rejected ({status}): {resp}")
+            print(f"uplink: сервер отклонил ({status}); state не сдвинут, повторим позже")
             save_json(STATE_F, state)
             return 1
         if heartbeat:
@@ -341,13 +403,8 @@ def heartbeat() -> int:
     if not cfg.get("enabled", True):
         print("uplink: disabled в config.json")
         return 1
-    try:
-        response = post_batch(cfg, machine_id(), [])
-    except (urllib.error.URLError, OSError, json.JSONDecodeError) as error:
-        log(f"FAIL heartbeat: {error}")
-        print(f"uplink: heartbeat не доставлен ({error})")
-        return 1
-    if not response.get("accepted"):
+    status_code, response = post_batch(cfg, machine_id(), [])
+    if status_code != 200 or not response.get("accepted"):
         log(f"FAIL heartbeat rejected: {response}")
         print("uplink: платформа отклонила heartbeat")
         return 1

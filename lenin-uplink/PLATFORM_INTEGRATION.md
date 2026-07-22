@@ -7,7 +7,7 @@
 
 ```text
 1. Пользователь входит в платформу.
-2. Профиль → Устройства → consent → одноразовый lsc_… код.
+2. Профиль → Lenin Client → consent → одноразовый lsc_… код.
 3. Пользователь устанавливает lenin-client@lenin.
 4. /lenin-client:setup <код>
 5. POST /api/uplink/register { code, machine_id }
@@ -58,8 +58,8 @@ Content-Type: application/json
   "client": {
     "name": "lenin-client",
     "version": "0.1.0",
-    "core_version": "0.1.4",
-    "uplink_version": "1.1.1"
+    "core_version": "0.1.5",
+    "uplink_version": "1.1.3"
   },
   "chunks": []
 }

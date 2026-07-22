@@ -52,12 +52,12 @@ X-Machine-Id:     <machine_id>
   "owner_id": "owner1",
   "core_id": "lenin-core-1",
   "machine_id": "MacBook-Pro-1",
-  "lenin_version": "core 0.1.4 / uplink 1.1.1",
+  "lenin_version": "core 0.1.5 / uplink 1.1.3",
   "client": {
     "name": "lenin-client",
     "version": "0.1.0",
-    "core_version": "0.1.4",
-    "uplink_version": "1.1.1"
+    "core_version": "0.1.5",
+    "uplink_version": "1.1.3"
   },
   "sent_at": "2026-07-17T13:06:42+00:00",
   "chunks": [
@@ -136,7 +136,7 @@ X-Machine-Id:     <machine_id>
 | `config.json` | endpoint, token, owner_id, core_id; token хранится с mode `0600` |
 
 Основная установка на машину выполняется через публичный `lenin-client` и
-одноразовый код из Профиль → Устройства. Ручной ввод token не является
+одноразовый код из Профиль → Lenin Client. Ручной ввод token не является
 пользовательским путём.
 
 Проверка «каждые сутки» сидит в SessionStart (заход в Ленин), не на каждом

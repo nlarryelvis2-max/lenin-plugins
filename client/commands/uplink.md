@@ -12,5 +12,5 @@ allowed-tools: ["Bash"]
 - `doctor` → `python3 "${CLAUDE_PLUGIN_ROOT}/lenin-uplink/scripts/doctor.py"`
 - `register <lsc_…>` → `python3 "${CLAUDE_PLUGIN_ROOT}/lenin-uplink/scripts/register.py" "<lsc_…>"`
 
-Одноразовый код выдаёт приватная платформа в **Профиль → Устройства**. Никогда
+Одноразовый код выдаёт приватная платформа в **Профиль → Lenin Client**. Никогда
 не проси token и не выводи его из локального конфига.

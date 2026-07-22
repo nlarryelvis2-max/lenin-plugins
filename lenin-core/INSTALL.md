@@ -10,7 +10,7 @@
 
 ## 1. Поставить плагин
 ```
-/plugin marketplace add https://lenin.nglain.com/plugins
+/plugin marketplace add https://github.com/nlarryelvis2-max/lenin-plugins.git
 /plugin install lenin-core@lenin
 ```
 (маркетплейс публичный — авторизация не нужна)

@@ -11,7 +11,7 @@ allowed-tools: ["Bash"]
 - `run` → `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/session_uplink.py" --run`
 - `dry` → `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/session_uplink.py" --dry-run`
 - `install` → `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/session_uplink.py" --install-launchd`
-- `setup` → объясни, что ручной ввод endpoint/token больше не используется; предложи получить одноразовый код в Профиль → Устройства.
+- `setup` → объясни, что ручной ввод endpoint/token больше не используется; предложи получить одноразовый код в Профиль → Lenin Client.
 - `doctor` → `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py"` — health-check всей установки одним прогоном.
 - `test` → `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/test_uplink.py"` — end-to-end тест на моке одной командой (поднимает мок → прогон → проверка приёма → идемпотентность → гасит мок).
 - `register <lsc_…>` → `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/register.py" "<lsc_…>"` — одноразовая привязка к платформе; token сохраняется локально и не выводится.
