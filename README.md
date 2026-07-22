@@ -88,8 +88,8 @@
 
 | Плагин | Версия | Статус |
 |---|---|---|
-| `lenin-core` | 0.1.4 | ✅ готов (9 движков, 7 skills, Lean-канон, templates, онбординг + анкета) |
-| `lenin-uplink` | 1.1.2 | ✅ готов (device-flow register + PKCE, refresh, revoke, `/uplink test`, doctor) |
+| `lenin-core` | 0.1.5 | ✅ готов (9 движков, 7 skills, Lean-канон, templates, онбординг + анкета) |
+| `lenin-uplink` | 1.1.3 | ✅ готов (device-flow register + PKCE, refresh, revoke, `/uplink test`, doctor) |
 
 **Готово (клиент, полностью):** оба плагина + device-flow онбординг (RFC 8628 + PKCE)
 + refresh-token + revoke + контракт аплинк + ТЗ платформы (backend + фронтенд).

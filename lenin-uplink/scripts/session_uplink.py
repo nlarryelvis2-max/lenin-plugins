@@ -72,6 +72,12 @@ def now_iso() -> str:
 
 def log(msg: str) -> None:
     BASE.mkdir(parents=True, exist_ok=True)
+    try:  # простая ротация: log > 5MB → оставляем хвост 1MB
+        if LOG_F.exists() and LOG_F.stat().st_size > 5 * 1024 * 1024:
+            tail = LOG_F.read_bytes()[-1024 * 1024:]
+            LOG_F.write_bytes(b"... (rotated) ...\n" + tail)
+    except OSError:
+        pass
     with LOG_F.open("a", encoding="utf-8") as f:
         f.write(f"{now_iso()} {msg}\n")
 
@@ -133,9 +139,12 @@ def scan_pending(state: dict, max_chunk: int, only: str | None = None) -> list[d
             offset = 0  # файл пересоздан/усечён — перечитываем с нуля
         if size <= offset:
             continue
-        with p.open("rb") as f:
-            f.seek(offset)
-            data = f.read(max_chunk)
+        try:
+            with p.open("rb") as f:
+                f.seek(offset)
+                data = f.read(max_chunk)
+        except OSError:
+            continue  # активная сессия удалила/ротировала .jsonl между stat и open
         # резать только по границе строки — активная сессия дописывается
         nl = data.rfind(b"\n")
         if nl < 0:
