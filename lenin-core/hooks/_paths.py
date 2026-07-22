@@ -10,7 +10,23 @@ from pathlib import Path
 
 
 def kernel_dir() -> Path:
-    """Папка ядра владельца (где открыт Claude Code)."""
+    """Папка ядра владельца — ФИКСИРОВАННАЯ (единое второе Я на всех проектах).
+
+    При user scope плагин работает в любой папке, но состояние (observations,
+    posterior, optimal) должно быть единым — иначе фрагментируется по папкам.
+    Поэтому ядро берём из onboarding-конфига, не из CLAUDE_PROJECT_DIR.
+    """
+    try:
+        cfg = Path.home() / ".claude" / "lenin" / "config.json"
+        k = json.loads(cfg.read_text(encoding="utf-8")).get("kernel")
+        if k:
+            return Path(k).expanduser()
+    except Exception:
+        pass
+    default = Path.home() / ".claude" / "lenin-kernel"
+    if default.exists():
+        return default
+    # до /lenin setup — нет ядра, используем текущую папку (degrade)
     return Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
 
 
