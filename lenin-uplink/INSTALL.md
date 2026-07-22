@@ -9,17 +9,18 @@
 
 ## Основной путь
 
-В платформе откройте меню профиля → **Установить Ленина**, подтвердите consent и получите
-одноразовый код. Затем в Claude Code:
+В платформе откройте меню профиля → **Установить Ленина** и скопируйте команду
+в Terminal:
 
-```text
-/plugin marketplace add nlarryelvis2-max/lenin-plugins
-/plugin install lenin-client@lenin
-/reload-plugins
-/lenin-client:setup <одноразовый код>
+```bash
+claude plugin marketplace add nlarryelvis2-max/lenin-plugins && claude plugin install lenin-client@lenin
 ```
 
-Проверка:
+Откройте новую сессию Claude Code и выполните `/lenin-client:setup`.
+
+Чтобы включить приватную синхронизацию, отдельно подтвердите её на платформе,
+получите одноразовый код и выполните показанную команду
+`/lenin-client:setup <код>`. Проверка:
 
 ```text
 /lenin-client:status

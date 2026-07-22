@@ -21,21 +21,20 @@
 
 1. Войти в приватную платформу.
 2. Открыть меню профиля → **Установить Ленина**.
-3. В Claude Code выполнить показанные на платформе команды:
+3. Скопировать показанную на платформе команду в Terminal:
 
-```text
-/plugin marketplace add nlarryelvis2-max/lenin-plugins
-/plugin install lenin-client@lenin
-/reload-plugins
+```bash
+claude plugin marketplace add nlarryelvis2-max/lenin-plugins && claude plugin install lenin-client@lenin
 ```
 
-4. На платформе подтвердить личную синхронизацию и получить одноразовый код.
-5. Завершить подключение и проверить клиент:
+4. Открыть новую сессию Claude Code и настроить личное ядро:
 
 ```text
-/lenin-client:setup <одноразовый код>
-/lenin-client:status
+/lenin-client:setup
 ```
+
+5. Необязательно: на платформе разрешить приватную синхронизацию, получить
+одноразовый код и выполнить показанную команду `/lenin-client:setup <код>`.
 
 Код действует 10 минут и используется один раз. Платформа возвращает Uplink
 token напрямую локальному скрипту. Token сохраняется в

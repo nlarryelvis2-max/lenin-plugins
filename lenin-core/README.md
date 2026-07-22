@@ -22,15 +22,13 @@
 
 Полный гайд: [`INSTALL.md`](INSTALL.md). Кратко:
 
-```
-/plugin marketplace add nlarryelvis2-max/lenin-plugins
-/plugin install lenin-client@lenin
-/reload-plugins
-/lenin-client:setup <одноразовый код из платформы>
+```bash
+claude plugin marketplace add nlarryelvis2-max/lenin-plugins && claude plugin install lenin-client@lenin
 ```
 
-Затем открыть Claude Code в папке ядра, куда setup развернул шаблоны, —
-Ленин живой.
+Затем открыть новую сессию Claude Code и выполнить `/lenin-client:setup`.
+Приватная синхронизация подключается позже одноразовым кодом из платформы и не
+нужна для работы личного ядра.
 
 ## Файлы
 
