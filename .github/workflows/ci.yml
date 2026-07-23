@@ -3,7 +3,6 @@ name: Validate Lenin Client
 on:
   pull_request:
   push:
-    branches: [main]
 
 permissions:
   contents: read
