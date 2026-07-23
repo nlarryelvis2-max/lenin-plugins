@@ -1,6 +1,6 @@
 {
   "name": "@lenin-ecosystem/client",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "description": "Public Lenin Client and provider-neutral Lenin Core projection.",
@@ -12,6 +12,6 @@
     "lenin-core/skills/*/SKILL.md"
   ],
   "scripts": {
-    "test": "node --test test/*.test.js && python3 -m unittest discover -s client/scripts -p 'test_*.py' -v && python3 -m unittest discover -s lenin-uplink/scripts -p 'test_*.py' -v"
+    "test": "node --test test/*.test.js && python3 -m unittest discover -s client/scripts -p 'test_*.py' -v && python3 -m unittest discover -s lenin-core/scripts -p 'test_*.py' -v && python3 -m unittest discover -s lenin-uplink/scripts -p 'test_*.py' -v"
   }
 }

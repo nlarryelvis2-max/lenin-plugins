@@ -1,5 +1,15 @@
 # Changelog
 
+## Lenin Client 0.3.1 · Core 0.2.0 · Uplink 1.1.4
+
+- Добавлена нативная команда `/lenin-client:update`: marketplace и клиент
+  обновляются штатными командами Claude Code без повторного setup.
+- Описаны ручной и автоматический каналы обновления, сохранность локальной
+  памяти, Keychain и Uplink state, а также миграция со старых отдельных
+  плагинов.
+- `/lenin-client:status` теперь проверяет единый bundled-клиент вместо старого
+  standalone cache `lenin-core`.
+
 ## Lenin Client 0.3.0 · Core 0.2.0 · Uplink 1.1.4
 
 - Добавлена provider-neutral проекция Lenin Core для платформы: единая persona

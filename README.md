@@ -19,7 +19,7 @@
   архив платформы. Они не становятся памятью или знаниями проекта
   автоматически.
 
-## Установка
+## Первая установка
 
 1. Войти в приватную платформу.
 2. Открыть меню профиля → **Установить Ленина**.
@@ -78,6 +78,43 @@ token напрямую локальному скрипту. Token сохраня
 /lenin-client:status
 ```
 
+## Обновление
+
+Начиная со следующего обновления достаточно выполнить в Claude Code:
+
+```text
+/lenin-client:update
+```
+
+Для клиента, в котором этой команды ещё нет, выполнить один раз в Terminal:
+
+```bash
+claude plugin marketplace update lenin && claude plugin update lenin-client@lenin
+```
+
+Затем открыть новую сессию Claude Code или выполнить `/reload-plugins` и
+проверить `/lenin-client:status`.
+
+Обновляется только versioned plugin cache. Личное ядро и память в
+`~/.claude/lenin-kernel`, настройки в `~/.claude/lenin`, project credential в
+macOS Keychain, Uplink token и состояние в `~/.claude/lenin_uplink` сохраняются.
+Повторный setup и новые коды подключения не нужны.
+
+Автоматические обновления можно включить нативно: открыть `/plugin` →
+**Marketplaces** → **lenin** → **Enable auto-update**. После автоматического
+обновления Claude Code предложит перезагрузить плагины. SessionStart сам
+перепривяжет фоновый Uplink к новой версии клиента.
+
+Старые отдельные установки `lenin-core@lenin` и `lenin-uplink@lenin` не надо
+переустанавливать поверх себя. Сначала установить единый `lenin-client@lenin`,
+проверить `/lenin-client:status`, затем удалить старые плагины, чтобы их hooks
+не запускались дважды:
+
+```bash
+claude plugin uninstall lenin-core@lenin
+claude plugin uninstall lenin-uplink@lenin
+```
+
 ## Состав
 
 `Lenin Client` — одна устанавливаемая поверхность поверх двух внутренних
@@ -123,7 +160,7 @@ lenin-client
 
 | Поверхность | Версия |
 |---|---:|
-| `lenin-client` | 0.3.0 |
+| `lenin-client` | 0.3.1 |
 | `lenin-core` | 0.2.0 |
 | `lenin-uplink` | 1.1.4 |
 | протокол | `lenin-uplink/1` |

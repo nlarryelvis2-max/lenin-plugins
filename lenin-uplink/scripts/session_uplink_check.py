@@ -22,11 +22,10 @@ PLIST = Path.home() / "Library" / "LaunchAgents" / "com.lenin.session-uplink.pli
 
 
 def ensure_launchd():
-    """Самопочинка: после обновления плагина путь версии в plist умирает —
-    если plist нет или его скрипт исчез, переустановить launchd на себя."""
+    """Привязать launchd именно к активной версии bundled Uplink."""
     try:
         m = re.search(r"<string>(/[^<]*session_uplink\.py)</string>", PLIST.read_text())
-        if m and Path(m.group(1)).exists():
+        if m and Path(m.group(1)).resolve() == SCRIPT.resolve():
             return
     except FileNotFoundError:
         pass

@@ -3,13 +3,13 @@
   "owner": { "name": "lenin-ecosystem" },
   "metadata": {
     "description": "Публичный Lenin Client: личное ядро и безопасная синхронизация с приватной платформой",
-    "version": "1.4.0"
+    "version": "1.5.0"
   },
   "plugins": [
     {
       "name": "lenin-client",
       "displayName": "Lenin Client",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "source": "./",
       "strict": false,
       "description": "Единый клиент Ленина для Claude Code: личное ядро, нативная работа с проектами, командный чат и Uplink сессий",
