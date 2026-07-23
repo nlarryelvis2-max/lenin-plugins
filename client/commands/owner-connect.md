@@ -1,0 +1,16 @@
+---
+description: "Подключить owner-возможности Lenin MCP"
+allowed-tools: ["Bash"]
+---
+
+Подключи owner-доступ Lenin MCP одноразовым кодом `$ARGUMENTS`.
+
+Код должен начинаться с `lpc_`. Передай его только процессу регистрации и не
+печатай серверный токен:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/client/scripts/owner_register.py" "$ARGUMENTS"
+```
+
+Если регистрация успешна, попроси перезапустить Claude Code. Если нет —
+передай пользователю безопасный текст ошибки без содержимого кода.

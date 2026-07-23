@@ -3,16 +3,16 @@
   "owner": { "name": "lenin-ecosystem" },
   "metadata": {
     "description": "Публичный Lenin Client: личное ядро и безопасная синхронизация с приватной платформой",
-    "version": "1.2.1"
+    "version": "1.3.0"
   },
   "plugins": [
     {
       "name": "lenin-client",
       "displayName": "Lenin Client",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "source": "./",
       "strict": false,
-      "description": "Единый клиент Ленина для Claude Code: личное ядро, память и Uplink сессий",
+      "description": "Единый клиент Ленина для Claude Code: личное ядро, память, Uplink и owner MCP",
       "homepage": "https://lenin.nglain.com",
       "repository": "https://github.com/nlarryelvis2-max/lenin-plugins",
       "keywords": ["lenin", "client", "memory", "uplink", "project-context"],
