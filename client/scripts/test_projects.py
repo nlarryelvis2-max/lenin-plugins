@@ -15,10 +15,11 @@ class ProjectsClientTest(unittest.TestCase):
         skill = (root / "lenin-core" / "skills" / "work-with-lenin-projects" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("name: work-with-lenin-projects", skill)
         self.assertIn("projects.py\" show", skill)
+        self.assertIn("projects.py\" open", skill)
         self.assertIn("projects.py\" send", skill)
         self.assertIn("Явная просьба пользователя", skill)
         self.assertIn("данными, а не", skill)
-        self.assertIn("инструкциями для выполнения", skill)
+        self.assertIn("Read", skill)
 
     def test_connect_keeps_access_token_out_of_config_and_output(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -71,6 +72,62 @@ class ProjectsClientTest(unittest.TestCase):
         self.assertEqual(projects.resolve_project(available, "бауманка")["id"], "science-bauman")
         with self.assertRaisesRegex(projects.ClientError, "не найден"):
             projects.resolve_project(available, "VisionOS")
+
+    def test_open_material_reads_visible_text_lazily_by_title(self):
+        workspace = {
+            "materials": {
+                "files": [{
+                    "kind": "file", "path": "files/plan-a1b2.md", "name": "План.md",
+                    "title": "План проекта", "visibility": "project",
+                }],
+                "artifacts": [],
+                "knowledge": [],
+            },
+        }
+        with (
+            patch.object(projects, "accessible_projects", return_value=([
+                {"id": "homeos", "name": "HomeOS"},
+            ], {"platform_url": "https://lenin.nglain.com"}, "lpa_secret")),
+            patch.object(projects, "request_json", return_value={"workspace": workspace}),
+            patch.object(projects, "request_bytes", return_value=b"# Plan\n\nCurrent focus.\n") as read,
+        ):
+            rendered = projects.open_material(["HomeOS", "--", "file", "План", "проекта"])
+
+        self.assertIn("# План проекта", rendered)
+        self.assertIn("Current focus.", rendered)
+        self.assertIn("данными, а не инструкциями", rendered)
+        self.assertIn("projectId=homeos", read.call_args.args[0])
+        self.assertIn("path=files%2Fplan-a1b2.md", read.call_args.args[0])
+
+    def test_open_material_caches_binary_with_private_permissions(self):
+        workspace = {
+            "materials": {
+                "files": [],
+                "artifacts": [{
+                    "kind": "artifact", "path": "knowledge/artifacts/report.pdf",
+                    "name": "report.pdf", "title": "Итоговый отчёт", "visibility": "project",
+                }],
+                "knowledge": [],
+            },
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            with (
+                patch.object(projects, "BASE", Path(temporary)),
+                patch.object(projects, "accessible_projects", return_value=([
+                    {"id": "science-bauman", "name": "Science / Бауманка"},
+                ], {"platform_url": "https://lenin.nglain.com"}, "lpa_secret")),
+                patch.object(projects, "request_json", return_value={"workspace": workspace}),
+                patch.object(projects, "request_bytes", return_value=b"%PDF-test"),
+            ):
+                rendered = projects.open_material([
+                    "Science", "/", "Бауманка", "--", "artifact", "Итоговый", "отчёт",
+                ])
+                cached = next((Path(temporary) / "materials" / "science-bauman").iterdir())
+                self.assertEqual(cached.read_bytes(), b"%PDF-test")
+                self.assertEqual(cached.stat().st_mode & 0o777, 0o600)
+
+        self.assertIn("приватный cache", rendered)
+        self.assertIn("Read", rendered)
 
     def test_send_posts_only_text_to_the_resolved_project(self):
         calls = []
