@@ -1,0 +1,8 @@
+*
+!package.json
+!README.md
+!lenin-core/
+!lenin-core/platform-core.js
+!lenin-core/skills/
+!lenin-core/skills/*/
+!lenin-core/skills/*/SKILL.md
