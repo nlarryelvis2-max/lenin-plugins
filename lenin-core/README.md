@@ -34,7 +34,8 @@ claude plugin marketplace add nlarryelvis2-max/lenin-plugins && claude plugin in
 
 ```
 hooks/           9 движков + identity_context + _paths (все через CLAUDE_PLUGIN_ROOT)
-skills/          7 базовых правил (атомы, позы, trust, …) — модель вызывает по контексту
+skills/          7 поведенческих навыков + навык проектов — модель вызывает по контексту
+platform-core.js нейтральная persona и 7 навыков для серверной Claude/Codex-проекции
 lean/            формализация T1-T8 + T★ + lakefile
 templates/       скелеты ядра (CLAUDE.md, MEMORY.md, hot/, library/)
 commands/        /lenin (status), /lenin setup (онбординг)

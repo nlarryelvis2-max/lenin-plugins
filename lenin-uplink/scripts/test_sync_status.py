@@ -25,10 +25,10 @@ class SyncStatusTests(unittest.TestCase):
         self.home.cleanup()
 
     def test_reports_the_installed_uplink_version(self):
-        self.assertEqual(self.module.client_metadata()["version"], "0.2.4")
-        self.assertEqual(self.module.client_metadata()["core_version"], "0.1.5")
+        self.assertEqual(self.module.client_metadata()["version"], "0.3.0")
+        self.assertEqual(self.module.client_metadata()["core_version"], "0.2.0")
         self.assertEqual(self.module.client_metadata()["uplink_version"], "1.1.4")
-        self.assertIn("core 0.1.5", self.module.lenin_version())
+        self.assertIn("core 0.2.0", self.module.lenin_version())
         self.assertIn("uplink 1.1.4", self.module.lenin_version())
 
     def test_payload_reports_structured_client_versions(self):

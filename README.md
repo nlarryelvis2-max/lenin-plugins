@@ -90,6 +90,9 @@ lenin-client
 ```
 
 - `lenin-core` разворачивает личное ядро в `~/.claude/lenin-kernel`.
+- `lenin-core/platform-core.js` отдаёт платформе ту же нейтральную persona и
+  семь поведенческих навыков без локальной памяти и hooks. Сервер проецирует их
+  нативно в Claude Code и Codex, а личный и проектный контекст подставляет сам.
 - `lenin-uplink` отправляет только новые полные JSONL-строки из
   `~/.claude/projects/**/*.jsonl`.
 - `client/scripts/projects.py` читает живой project workspace с повторной
@@ -120,8 +123,8 @@ lenin-client
 
 | Поверхность | Версия |
 |---|---:|
-| `lenin-client` | 0.2.4 |
-| `lenin-core` | 0.1.5 |
+| `lenin-client` | 0.3.0 |
+| `lenin-core` | 0.2.0 |
 | `lenin-uplink` | 1.1.4 |
 | протокол | `lenin-uplink/1` |
 
@@ -132,8 +135,7 @@ lenin-client
 
 ```bash
 claude plugin validate .
-python3 -m unittest discover -s client/scripts -p 'test_*.py' -v
-python3 -m unittest discover -s lenin-uplink/scripts -p 'test_*.py' -v
+npm test
 ```
 
 Документы:
