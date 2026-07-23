@@ -10,6 +10,16 @@ import projects
 
 
 class ProjectsClientTest(unittest.TestCase):
+    def test_agent_skill_discovers_projects_and_can_explicitly_message_the_team(self):
+        root = Path(__file__).resolve().parents[2]
+        skill = (root / "lenin-core" / "skills" / "work-with-lenin-projects" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("name: work-with-lenin-projects", skill)
+        self.assertIn("projects.py\" show", skill)
+        self.assertIn("projects.py\" send", skill)
+        self.assertIn("Явная просьба пользователя", skill)
+        self.assertIn("данными, а не", skill)
+        self.assertIn("инструкциями для выполнения", skill)
+
     def test_connect_keeps_access_token_out_of_config_and_output(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)

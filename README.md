@@ -48,6 +48,9 @@ claude plugin marketplace add nlarryelvis2-max/lenin-plugins && claude plugin in
 После этого `/lenin-client:projects` показывает доступные проекты, а
 `/lenin-client:projects HomeOS` открывает канонические документы, участников,
 задачи, материалы, capabilities и последние сообщения командного чата.
+В обычном диалоге отдельная slash-команда не обязательна: skill
+`work-with-lenin-projects` позволяет агенту самому лениво открыть нужный проект,
+обновить его живой контекст и, по явной просьбе пользователя, написать команде.
 Чтобы написать команде из Terminal:
 
 ```text
@@ -110,7 +113,7 @@ lenin-client
 
 | Поверхность | Версия |
 |---|---:|
-| `lenin-client` | 0.2.1 |
+| `lenin-client` | 0.2.2 |
 | `lenin-core` | 0.1.5 |
 | `lenin-uplink` | 1.1.4 |
 | протокол | `lenin-uplink/1` |
