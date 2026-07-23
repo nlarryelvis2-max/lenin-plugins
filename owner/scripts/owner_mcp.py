@@ -101,6 +101,53 @@ TOOLS = [
         },
     },
     {
+        "name": "lenin_owner_project_create",
+        "description": "Create a project and optionally allocate one active user as the person responsible for its result.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["name", "confirmed"],
+            "properties": {
+                "name": {"type": "string"},
+                "description": {"type": "string"},
+                "company": {"type": "string"},
+                "result_owner_login": {"type": "string"},
+                "result_owner_role": {"type": "string", "enum": ["contributor", "project-owner"]},
+                "confirmed": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_project_update",
+        "description": "Update a project's name, description or company without changing memberships.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["project_id", "confirmed"],
+            "properties": {
+                "project_id": {"type": "string"},
+                "name": {"type": "string"},
+                "description": {"type": "string"},
+                "company": {"type": "string"},
+                "confirmed": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_project_result_owner_set",
+        "description": "Set or clear the single project member responsible for the result. This does not grant global permissions.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["project_id", "login", "confirmed"],
+            "properties": {
+                "project_id": {"type": "string"},
+                "login": {"type": "string", "description": "Allocated active user login, or an empty string to clear."},
+                "confirmed": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "lenin_owner_project_access_set",
         "description": "Grant or update a user's access to one project.",
         "inputSchema": {
@@ -137,6 +184,46 @@ TOOLS = [
             "required": ["login", "confirmed"],
             "properties": {
                 "login": {"type": "string"},
+                "confirmed": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_user_context_update",
+        "description": "Replace a user's canonical startup context using optimistic locking.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["login", "text", "expected_sha256", "confirmed"],
+            "properties": {
+                "login": {"type": "string"},
+                "text": {"type": "string"},
+                "expected_sha256": {"type": "string"},
+                "confirmed": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_project_context_read",
+        "description": "Read the shared startup context for one project.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["project_id"],
+            "properties": {"project_id": {"type": "string"}},
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_project_context_update",
+        "description": "Replace a project's shared startup context using optimistic locking.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["project_id", "text", "expected_sha256", "confirmed"],
+            "properties": {
+                "project_id": {"type": "string"},
+                "text": {"type": "string"},
+                "expected_sha256": {"type": "string"},
                 "confirmed": {"type": "boolean"},
             },
             "additionalProperties": False,
@@ -202,10 +289,34 @@ def call(name: str, args: dict) -> dict:
         return request(f"/api/admin/users/{login}/conversations?{query}")
     if name == "lenin_owner_user_uplink_summary":
         return uplink_summary(args)
+    if name == "lenin_owner_project_context_read":
+        project = required_text(args.get("project_id"), "project_id")
+        return request(f"/api/project-context?{urlencode({'projectId': project})}")
     require_confirmation(args)
     if name == "lenin_owner_user_create":
         return request("/api/admin/users", method="POST", body={
             "id": args.get("login"), "name": args.get("name"), "role": "participant", "projectIds": [],
+        })
+    if name == "lenin_owner_project_create":
+        body = {
+            "name": args.get("name"),
+            "description": args.get("description", ""),
+            "company": args.get("company", ""),
+        }
+        if str(args.get("result_owner_login") or "").strip():
+            body["resultOwnerUserId"] = args.get("result_owner_login")
+            body["resultOwnerRole"] = args.get("result_owner_role") or "contributor"
+        return request("/api/admin/projects", method="POST", body=body)
+    if name == "lenin_owner_project_update":
+        project = segment(args.get("project_id"), "project_id")
+        body = {key: args[key] for key in ("name", "description", "company") if key in args}
+        if not body:
+            raise ValueError("Укажите хотя бы одно изменяемое поле проекта.")
+        return request(f"/api/admin/projects/{project}", method="PATCH", body=body)
+    if name == "lenin_owner_project_result_owner_set":
+        project = segment(args.get("project_id"), "project_id")
+        return request(f"/api/admin/projects/{project}", method="PATCH", body={
+            "resultOwnerUserId": str(args.get("login") or "").strip(),
         })
     if name == "lenin_owner_project_access_set":
         login, project = segment(args.get("login"), "login"), segment(args.get("project_id"), "project_id")
@@ -216,6 +327,18 @@ def call(name: str, args: dict) -> dict:
     if name == "lenin_owner_user_password_reset":
         login = segment(args.get("login"), "login")
         return request(f"/api/admin/users/{login}/password", method="POST", body={})
+    if name == "lenin_owner_user_context_update":
+        login = segment(args.get("login"), "login")
+        return request(f"/api/admin/users/{login}/memory/context", method="PUT", body={
+            "text": args.get("text"),
+            "expectedSha256": args.get("expected_sha256"),
+        })
+    if name == "lenin_owner_project_context_update":
+        return request("/api/project-context", method="PUT", body={
+            "projectId": required_text(args.get("project_id"), "project_id"),
+            "text": args.get("text"),
+            "expectedSha256": args.get("expected_sha256"),
+        })
     if name == "lenin_owner_user_status_set":
         login = segment(args.get("login"), "login")
         return request(f"/api/admin/users/{login}", method="PATCH", body={"status": args.get("status")})
@@ -378,7 +501,7 @@ def main() -> None:
                 result = {
                     "protocolVersion": "2024-11-05",
                     "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "lenin-owner", "version": "0.2.0"},
+                    "serverInfo": {"name": "lenin-owner", "version": "0.3.0"},
                 }
             elif method == "notifications/initialized":
                 continue

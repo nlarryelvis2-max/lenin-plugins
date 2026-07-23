@@ -23,6 +23,11 @@ class OwnerMcpTest(unittest.TestCase):
             "lenin_owner_user_uplink_summary",
             "lenin_owner_user_password_reset",
             "lenin_owner_user_status_set",
+            "lenin_owner_project_create",
+            "lenin_owner_project_result_owner_set",
+            "lenin_owner_user_context_update",
+            "lenin_owner_project_context_read",
+            "lenin_owner_project_context_update",
         }.issubset(names))
 
     def test_user_list_filters_and_resolves_project_names(self):
@@ -129,6 +134,49 @@ class OwnerMcpTest(unittest.TestCase):
         self.assertEqual(reset["temporaryPassword"], "temporary")
         self.assertEqual(calls[0], ("/api/admin/users/fil/password", "POST", {}))
         self.assertEqual(calls[1], ("/api/admin/users/sasha", "PATCH", {"status": "disabled"}))
+
+    def test_project_lifecycle_and_context_tools_use_scoped_routes(self):
+        calls = []
+
+        def fake_request(path, *, method="GET", body=None, token=""):
+            calls.append((path, method, body))
+            return {"ok": True}
+
+        with patch.object(owner_mcp, "request", fake_request):
+            owner_mcp.call("lenin_owner_project_create", {
+                "name": "Новый проект",
+                "result_owner_login": "sasha",
+                "result_owner_role": "project-owner",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_project_result_owner_set", {
+                "project_id": "p-one",
+                "login": "fil",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_user_context_update", {
+                "login": "sasha",
+                "text": "# Саша",
+                "expected_sha256": "abc",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_project_context_read", {"project_id": "p-one"})
+            owner_mcp.call("lenin_owner_project_context_update", {
+                "project_id": "p-one",
+                "text": "# Проект",
+                "expected_sha256": "def",
+                "confirmed": True,
+            })
+        self.assertEqual(calls[0][0:2], ("/api/admin/projects", "POST"))
+        self.assertEqual(calls[0][2]["resultOwnerUserId"], "sasha")
+        self.assertEqual(calls[1], (
+            "/api/admin/projects/p-one",
+            "PATCH",
+            {"resultOwnerUserId": "fil"},
+        ))
+        self.assertEqual(calls[2][0:2], ("/api/admin/users/sasha/memory/context", "PUT"))
+        self.assertEqual(calls[3][0], "/api/project-context?projectId=p-one")
+        self.assertEqual(calls[4][0:2], ("/api/project-context", "PUT"))
 
     def test_bootstrap_skips_existing_and_writes_private_credentials_file(self):
         calls = []
