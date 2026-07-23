@@ -22,7 +22,7 @@ class ProjectsClientTest(unittest.TestCase):
                     "token": "lpa_super-secret-value",
                     "user_id": "larry",
                     "device_id": "Larry-Mac",
-                    "scope": "project:read",
+                    "scope": "project:collaborate",
                 }),
                 patch.object(projects, "keychain_store", side_effect=lambda account, token: stored.update(account=account, token=token)),
             ):
@@ -61,6 +61,51 @@ class ProjectsClientTest(unittest.TestCase):
         self.assertEqual(projects.resolve_project(available, "бауманка")["id"], "science-bauman")
         with self.assertRaisesRegex(projects.ClientError, "не найден"):
             projects.resolve_project(available, "VisionOS")
+
+    def test_send_posts_only_text_to_the_resolved_project(self):
+        calls = []
+
+        def fake_request(path, **kwargs):
+            calls.append((path, kwargs))
+            return {
+                "message": {
+                    "id": "message-1",
+                    "authorName": "Ларри",
+                    "text": kwargs["body"]["text"],
+                },
+            }
+
+        with (
+            patch.object(projects, "accessible_projects", return_value=([
+                {"id": "science-bauman", "name": "Science / Бауманка"},
+            ], {"platform_url": "https://lenin.nglain.com"}, "lpa_secret")),
+            patch.object(projects, "request_json", side_effect=fake_request),
+        ):
+            project, message = projects.send_team_message([
+                "Science", "/", "Бауманка", "--", "Обновил", "план.",
+            ])
+
+        self.assertEqual(project["id"], "science-bauman")
+        self.assertEqual(message["text"], "Обновил план.")
+        self.assertEqual(calls, [(
+            "/api/product/projects/science-bauman/team-chat",
+            {
+                "method": "POST",
+                "body": {"text": "Обновил план."},
+                "token": "lpa_secret",
+                "config": {"platform_url": "https://lenin.nglain.com"},
+            },
+        )])
+
+    def test_send_requires_an_explicit_project_and_message(self):
+        with self.assertRaisesRegex(projects.ClientError, "Формат"):
+            projects.send_team_message(["HomeOS", "сообщение"])
+        with self.assertRaisesRegex(projects.ClientError, "проект"):
+            projects.send_team_message(["--", "сообщение"])
+        with self.assertRaisesRegex(projects.ClientError, "сообщение"):
+            projects.send_team_message(["HomeOS", "--"])
+        with self.assertRaisesRegex(projects.ClientError, "4000"):
+            projects.send_team_message(["HomeOS", "--", "x" * 4_001])
 
 
 if __name__ == "__main__":

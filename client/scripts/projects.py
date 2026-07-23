@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read the authenticated user's live Lenin project workspace from Terminal."""
+"""Read Lenin projects and explicitly post text to their team chats."""
 from __future__ import annotations
 
 import json
@@ -146,7 +146,7 @@ def connect(code: str) -> str:
         "platform_url": platform_url(current),
         "user_id": user_id,
         "device_id": str(registration.get("device_id") or machine_id()),
-        "scope": str(registration.get("scope") or "project:read"),
+        "scope": str(registration.get("scope") or "project:collaborate"),
     })
     return user_id
 
@@ -206,6 +206,35 @@ def project_workspace(query: str) -> dict:
     return workspace
 
 
+def send_team_message(arguments: List[str]) -> Tuple[dict, dict]:
+    if "--" not in arguments:
+        raise ClientError("Формат: send <проект> -- <сообщение>")
+    separator = arguments.index("--")
+    project_query = " ".join(arguments[:separator]).strip()
+    text = " ".join(arguments[separator + 1:]).strip()
+    if not project_query:
+        raise ClientError("Укажите проект перед --")
+    if not text:
+        raise ClientError("Введите сообщение после --")
+    if len(text) > 4_000:
+        raise ClientError("Сообщение должно быть не длиннее 4000 символов")
+
+    projects, config, token = accessible_projects()
+    project = resolve_project(projects, project_query)
+    project_id = urllib.parse.quote(str(project.get("id") or ""), safe="")
+    payload = request_json(
+        f"/api/product/projects/{project_id}/team-chat",
+        method="POST",
+        body={"text": text},
+        token=token,
+        config=config,
+    )
+    message = payload.get("message")
+    if not isinstance(message, dict) or not message.get("id"):
+        raise ClientError("Платформа не подтвердила отправку сообщения")
+    return project, message
+
+
 def format_time(value: str) -> str:
     text = str(value or "")
     return text.replace("T", " ")[:16] if text else ""
@@ -218,7 +247,11 @@ def render_projects(projects: List[dict]) -> str:
     for project in projects:
         role = "владелец" if project.get("canManage") else "участник"
         lines.append(f"- **{project.get('name') or project.get('id')}** (`{project.get('id')}`) · {role}")
-    lines.extend(["", "Открыть проект: `/lenin-client:projects <название>`"])
+    lines.extend([
+        "",
+        "Открыть проект: `/lenin-client:projects <название>`",
+        "Написать команде: `/lenin-client:projects send <проект> -- <сообщение>`",
+    ])
     return "\n".join(lines)
 
 
@@ -317,6 +350,12 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(render_projects(projects))
         elif command == "chat":
             print(render_chat(project_workspace(" ".join(args))))
+        elif command == "send":
+            project, message = send_team_message(args)
+            print(
+                f"✓ Отправлено в командный чат «{project.get('name') or project.get('id')}» "
+                f"от имени {message.get('authorName') or 'пользователя'}."
+            )
         elif command == "show":
             print(render_workspace(project_workspace(" ".join(args))))
         else:
