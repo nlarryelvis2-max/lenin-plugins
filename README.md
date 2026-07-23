@@ -175,6 +175,10 @@ claude plugin validate .
 npm test
 ```
 
+Те же проверки обязательны в GitHub Actions для каждого PR и обновления
+`main`. Новая версия публикуется только с новым `lenin-client.version`;
+неизменившийся номер версии Claude Code считает уже установленным.
+
 Документы:
 
 - [`lenin-core/README.md`](lenin-core/README.md)
