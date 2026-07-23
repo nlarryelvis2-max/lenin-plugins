@@ -7,7 +7,7 @@ from owner_client import register
 
 def main() -> int:
     if len(sys.argv) != 2:
-        print("Использование: /lenin-client:owner-connect <одноразовый owner-код>")
+        print("Использование: /lenin-owner:connect <одноразовый owner-код>")
         return 2
     try:
         result = register(sys.argv[1])

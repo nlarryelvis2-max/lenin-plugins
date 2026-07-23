@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local owner credential registration and authenticated Lenin API client."""
+"""Local administrator credential registration and authenticated Lenin API client."""
 from __future__ import annotations
 
 import json

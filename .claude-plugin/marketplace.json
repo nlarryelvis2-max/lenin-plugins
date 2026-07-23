@@ -41,6 +41,18 @@
       }
     },
     {
+      "name": "lenin-owner",
+      "displayName": "Lenin Owner MCP",
+      "version": "0.1.0",
+      "source": "./owner",
+      "strict": true,
+      "description": "Отдельный административный MCP для владельцев и назначенных администраторов Ленина",
+      "homepage": "https://lenin.nglain.com",
+      "repository": "https://github.com/nlarryelvis2-max/lenin-plugins",
+      "keywords": ["lenin", "owner", "admin", "mcp"],
+      "commands": ["./commands/"]
+    },
+    {
       "name": "lenin-core",
       "source": "./lenin-core",
       "description": "Внутренний компонент Lenin Client: личное ядро, память и онбординг"

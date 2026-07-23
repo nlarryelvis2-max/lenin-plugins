@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dependency-free stdio MCP for Lenin owner administration."""
+"""Dependency-free stdio MCP for Lenin owner and administrator accounts."""
 from __future__ import annotations
 
 import json
@@ -12,7 +12,7 @@ from owner_client import request
 TOOLS = [
     {
         "name": "lenin_owner_overview",
-        "description": "List Lenin users, projects and current project grants. Owner access only.",
+        "description": "List Lenin users, projects and current project grants. Administrator access only.",
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
     },
     {

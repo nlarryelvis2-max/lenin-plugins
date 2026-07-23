@@ -51,7 +51,13 @@ token напрямую локальному скрипту. Token сохраня
 Владелец выпускает в профиле платформы одноразовый owner-код и выполняет:
 
 ```text
-/lenin-client:owner-connect lpc_…
+/lenin-owner:connect lpc_…
+```
+
+Административный пакет ставится отдельно:
+
+```bash
+claude plugin install lenin-owner@lenin
 ```
 
 После перезапуска Claude Code сервер `lenin-owner` даёт инструменты для

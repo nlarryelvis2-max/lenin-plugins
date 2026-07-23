@@ -1,0 +1,7 @@
+{
+  "name": "lenin-owner",
+  "version": "0.1.0",
+  "description": "Административный MCP Ленина для владельцев и назначенных администраторов",
+  "author": { "name": "lenin-ecosystem" },
+  "keywords": ["lenin", "owner", "admin", "mcp"]
+}

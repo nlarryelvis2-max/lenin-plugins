@@ -1,5 +1,5 @@
 ---
-description: "Подключить owner-возможности Lenin MCP"
+description: "Подключить административные возможности Lenin MCP"
 allowed-tools: ["Bash"]
 ---
 
@@ -9,7 +9,7 @@ allowed-tools: ["Bash"]
 печатай серверный токен:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/client/scripts/owner_register.py" "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/owner_register.py" "$ARGUMENTS"
 ```
 
 Если регистрация успешна, попроси перезапустить Claude Code. Если нет —
