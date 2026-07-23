@@ -28,6 +28,9 @@ class OwnerMcpTest(unittest.TestCase):
             "lenin_owner_user_context_update",
             "lenin_owner_project_context_read",
             "lenin_owner_project_context_update",
+            "lenin_owner_user_history_read",
+            "lenin_owner_team_chat_read",
+            "lenin_owner_team_chat_post",
         }.issubset(names))
 
     def test_user_list_filters_and_resolves_project_names(self):
@@ -177,6 +180,45 @@ class OwnerMcpTest(unittest.TestCase):
         self.assertEqual(calls[2][0:2], ("/api/admin/users/sasha/memory/context", "PUT"))
         self.assertEqual(calls[3][0], "/api/project-context?projectId=p-one")
         self.assertEqual(calls[4][0:2], ("/api/project-context", "PUT"))
+
+    def test_owner_history_and_team_chat_are_audited_and_scoped(self):
+        calls = []
+
+        def fake_request(path, *, method="GET", body=None, token=""):
+            calls.append((path, method, body))
+            return {"ok": True}
+
+        with patch.object(owner_mcp, "request", fake_request):
+            owner_mcp.call("lenin_owner_user_history_read", {
+                "login": "sasha",
+                "reason": "weekly review",
+                "limit": 500,
+            })
+            owner_mcp.call("lenin_owner_team_chat_read", {
+                "reason": "new messages",
+                "project_id": "p-one",
+                "after_sequence": 42,
+            })
+            with self.assertRaisesRegex(ValueError, "confirmed=true"):
+                owner_mcp.call("lenin_owner_team_chat_post", {
+                    "project_id": "p-one",
+                    "text": "Принял",
+                })
+            owner_mcp.call("lenin_owner_team_chat_post", {
+                "project_id": "p-one",
+                "text": "Принял",
+                "confirmed": True,
+            })
+        self.assertIn("/api/admin/users/sasha/history?", calls[0][0])
+        self.assertIn("limit=200", calls[0][0])
+        self.assertIn("reason=weekly+review", calls[0][0])
+        self.assertIn("/api/product/owner/team-chat?", calls[1][0])
+        self.assertIn("projectId=p-one", calls[1][0])
+        self.assertEqual(calls[2], (
+            "/api/product/owner/team-chat",
+            "POST",
+            {"projectId": "p-one", "text": "Принял", "confirmed": True},
+        ))
 
     def test_bootstrap_skips_existing_and_writes_private_credentials_file(self):
         calls = []

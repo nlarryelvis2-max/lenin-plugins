@@ -74,6 +74,20 @@ TOOLS = [
         },
     },
     {
+        "name": "lenin_owner_user_history_read",
+        "description": "Read one user's recent Lenin interaction history across every project. The reason is written to the administrator audit.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["login", "reason"],
+            "properties": {
+                "login": {"type": "string"},
+                "reason": {"type": "string"},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 200, "default": 100},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "lenin_owner_user_uplink_summary",
         "description": "Read aggregate Uplink connection and inventory state for one user. Never returns raw paths, filenames, session text or downloads.",
         "inputSchema": {
@@ -230,6 +244,35 @@ TOOLS = [
         },
     },
     {
+        "name": "lenin_owner_team_chat_read",
+        "description": "Read new team-chat messages across all projects or one project using a global sequence cursor. The reason is audited.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["reason"],
+            "properties": {
+                "reason": {"type": "string"},
+                "project_id": {"type": "string"},
+                "after_sequence": {"type": "integer", "minimum": 0, "default": 0},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 200, "default": 100},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_team_chat_post",
+        "description": "Publish a plain-text message to one project's team chat as the connected global owner.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["project_id", "text", "confirmed"],
+            "properties": {
+                "project_id": {"type": "string"},
+                "text": {"type": "string"},
+                "confirmed": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "lenin_owner_user_status_set",
         "description": "Enable or disable one user account without changing its role or project grants.",
         "inputSchema": {
@@ -287,11 +330,27 @@ def call(name: str, args: dict) -> dict:
         offset = bounded_integer(args.get("offset"), 0, 0, 50_000)
         query = urlencode({"projectId": project_id, "limit": limit, "offset": offset, "reason": reason})
         return request(f"/api/admin/users/{login}/conversations?{query}")
+    if name == "lenin_owner_user_history_read":
+        login = segment(args.get("login"), "login")
+        query = urlencode({
+            "limit": bounded_integer(args.get("limit"), 100, 1, 200),
+            "reason": required_reason(args),
+        })
+        return request(f"/api/admin/users/{login}/history?{query}")
     if name == "lenin_owner_user_uplink_summary":
         return uplink_summary(args)
     if name == "lenin_owner_project_context_read":
         project = required_text(args.get("project_id"), "project_id")
         return request(f"/api/project-context?{urlencode({'projectId': project})}")
+    if name == "lenin_owner_team_chat_read":
+        query = {
+            "reason": required_reason(args),
+            "afterSequence": bounded_integer(args.get("after_sequence"), 0, 0, 2_147_483_647),
+            "limit": bounded_integer(args.get("limit"), 100, 1, 200),
+        }
+        if str(args.get("project_id") or "").strip():
+            query["projectId"] = required_text(args.get("project_id"), "project_id")
+        return request(f"/api/product/owner/team-chat?{urlencode(query)}")
     require_confirmation(args)
     if name == "lenin_owner_user_create":
         return request("/api/admin/users", method="POST", body={
@@ -338,6 +397,12 @@ def call(name: str, args: dict) -> dict:
             "projectId": required_text(args.get("project_id"), "project_id"),
             "text": args.get("text"),
             "expectedSha256": args.get("expected_sha256"),
+        })
+    if name == "lenin_owner_team_chat_post":
+        return request("/api/product/owner/team-chat", method="POST", body={
+            "projectId": required_text(args.get("project_id"), "project_id"),
+            "text": required_text(args.get("text"), "text"),
+            "confirmed": True,
         })
     if name == "lenin_owner_user_status_set":
         login = segment(args.get("login"), "login")
@@ -501,7 +566,7 @@ def main() -> None:
                 result = {
                     "protocolVersion": "2024-11-05",
                     "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "lenin-owner", "version": "0.3.0"},
+                    "serverInfo": {"name": "lenin-owner", "version": "0.4.0"},
                 }
             elif method == "notifications/initialized":
                 continue
