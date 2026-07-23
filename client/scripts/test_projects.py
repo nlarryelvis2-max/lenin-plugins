@@ -10,6 +10,13 @@ import projects
 
 
 class ProjectsClientTest(unittest.TestCase):
+    def test_help_does_not_require_project_access(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(projects.main(["--help"]), 0)
+        self.assertIn("projects.py open", output.getvalue())
+        self.assertIn("macOS Keychain", output.getvalue())
+
     def test_agent_skill_discovers_projects_and_can_explicitly_message_the_team(self):
         root = Path(__file__).resolve().parents[2]
         skill = (root / "lenin-core" / "skills" / "work-with-lenin-projects" / "SKILL.md").read_text(encoding="utf-8")

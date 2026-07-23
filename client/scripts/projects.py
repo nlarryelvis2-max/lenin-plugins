@@ -27,6 +27,20 @@ TEXT_EXTENSIONS = {
     ".md", ".markdown", ".txt", ".json", ".jsonl", ".yaml", ".yml", ".csv",
     ".html", ".htm", ".xml", ".css", ".js", ".ts", ".py",
 }
+HELP = """Lenin Client — живое пространство назначенных проектов.
+
+Использование:
+  projects.py list
+  projects.py show <проект>
+  projects.py chat <проект>
+  projects.py open <проект> -- <file|artifact|knowledge> <название>
+  projects.py send <проект> -- <сообщение>
+  projects.py connect <lpc_…>
+  projects.py disconnect
+
+Команды show и list работают только после подключения в Профиль → Клиент Ленина.
+Token хранится в macOS Keychain и не выводится.
+"""
 
 
 class ClientError(ValueError):
@@ -493,7 +507,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = list(argv if argv is not None else sys.argv[1:])
     command = args.pop(0).casefold() if args else "list"
     try:
-        if command == "connect":
+        if command in {"help", "-h", "--help"}:
+            print(HELP)
+        elif command == "connect":
             user_id = connect(args[0] if args else "")
             print(f"✓ Проекты подключены для {user_id}. Ключ сохранён в macOS Keychain и не выводится.")
         elif command == "disconnect":
