@@ -129,6 +129,24 @@ class ProjectsClientTest(unittest.TestCase):
         self.assertIn("приватный cache", rendered)
         self.assertIn("Read", rendered)
 
+    def test_material_cache_keeps_the_current_file_and_prunes_older_entries(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with (
+                patch.object(projects, "BASE", Path(temporary) / "lenin"),
+                patch.object(projects, "MAX_CACHE_FILES", 1),
+            ):
+                first = projects.cache_material("homeos", {
+                    "kind": "file", "path": "files/first.pdf", "name": "first.pdf",
+                }, b"first")
+                second = projects.cache_material("science-bauman", {
+                    "kind": "artifact", "path": "knowledge/artifacts/second.pdf", "name": "second.pdf",
+                }, b"second")
+
+                self.assertFalse(first.exists())
+                self.assertTrue(second.exists())
+                self.assertEqual((Path(temporary) / "lenin").stat().st_mode & 0o777, 0o700)
+                self.assertEqual(second.stat().st_mode & 0o777, 0o600)
+
     def test_send_posts_only_text_to_the_resolved_project(self):
         calls = []
 

@@ -21,6 +21,8 @@ PROD_BASE = "https://lenin.nglain.com"
 KEYCHAIN_SERVICE = "com.lenin.client.project-access"
 MAX_MATERIAL_BYTES = 32 * 1024 * 1024
 INLINE_TEXT_BYTES = 512 * 1024
+MAX_CACHE_FILES = 40
+MAX_CACHE_BYTES = 256 * 1024 * 1024
 TEXT_EXTENSIONS = {
     ".md", ".markdown", ".txt", ".json", ".jsonl", ".yaml", ".yml", ".csv",
     ".html", ".htm", ".xml", ".css", ".js", ".ts", ".py",
@@ -56,6 +58,7 @@ def load_config() -> dict:
 
 def save_config(value: dict) -> None:
     BASE.mkdir(parents=True, exist_ok=True)
+    BASE.chmod(0o700)
     temporary = CONFIG.with_suffix(".tmp")
     temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
     temporary.replace(CONFIG)
@@ -277,8 +280,32 @@ def resolve_material(workspace: dict, kind_query: str, name_query: str) -> dict:
     ))
 
 
+def prune_material_cache(cache_root: Path, keep: Path) -> None:
+    files = sorted(
+        (path for path in cache_root.rglob("*") if path.is_file() and not path.name.startswith(".material-")),
+        key=lambda path: path.stat().st_mtime_ns,
+        reverse=True,
+    )
+    total = keep.stat().st_size
+    kept = 1
+    for path in files:
+        if path == keep:
+            continue
+        size = path.stat().st_size
+        if kept < MAX_CACHE_FILES and total + size <= MAX_CACHE_BYTES:
+            total += size
+            kept += 1
+            continue
+        path.unlink(missing_ok=True)
+
+
 def cache_material(project_id: str, item: dict, content: bytes) -> Path:
-    directory = BASE / "materials" / str(project_id)
+    BASE.mkdir(parents=True, exist_ok=True)
+    BASE.chmod(0o700)
+    cache_root = BASE / "materials"
+    cache_root.mkdir(exist_ok=True)
+    cache_root.chmod(0o700)
+    directory = cache_root / str(project_id)
     directory.mkdir(parents=True, exist_ok=True)
     directory.chmod(0o700)
     original = Path(str(item.get("name") or item.get("title") or "material")).name
@@ -295,6 +322,7 @@ def cache_material(project_id: str, item: dict, content: bytes) -> Path:
         if temporary.exists():
             temporary.unlink()
     destination.chmod(0o600)
+    prune_material_cache(cache_root, destination)
     return destination
 
 
