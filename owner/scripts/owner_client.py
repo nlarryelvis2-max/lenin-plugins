@@ -49,7 +49,7 @@ def request(path: str, *, method: str = "GET", body: dict | None = None, token: 
     config = load_config()
     credential = token or str(config.get("token") or "")
     if not credential:
-        raise ValueError("Owner MCP не подключён: выполните /lenin-client:owner-connect <код>")
+        raise ValueError("Owner MCP не подключён: выполните /lenin-owner:connect <код>")
     data = json.dumps(body).encode("utf-8") if body is not None else None
     req = urllib.request.Request(
         f"{base_url(config)}{path}",
