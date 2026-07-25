@@ -507,7 +507,7 @@ def call(name: str, args: dict) -> dict:
             item.get("companyId") == company_id
             for item in user.get("companies", [])
         )
-        return request("/api/company-members", method="PATCH" if existing else "POST", body={
+        return request("/api/product/owner/company-members", method="PATCH" if existing else "POST", body={
             "companyId": company_id,
             "userId": login,
             "role": args.get("role"),
@@ -517,7 +517,7 @@ def call(name: str, args: dict) -> dict:
             "companyId": required_text(args.get("company_id"), "company_id"),
             "userId": required_text(args.get("login"), "login"),
         })
-        return request(f"/api/company-members?{query}", method="DELETE")
+        return request(f"/api/product/owner/company-members?{query}", method="DELETE")
     if name == "lenin_owner_company_invite_create":
         company = segment(args.get("company_id"), "company_id")
         body = {"role": args.get("role")}

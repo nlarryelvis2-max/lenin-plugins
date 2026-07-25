@@ -286,12 +286,12 @@ class OwnerMcpTest(unittest.TestCase):
         ))
         self.assertEqual(calls[1][0], "/api/admin/overview")
         self.assertEqual(calls[2], (
-            "/api/company-members",
+            "/api/product/owner/company-members",
             "PATCH",
             {"companyId": "labrador", "userId": "felix", "role": "company-owner"},
         ))
         self.assertEqual(calls[3][0:2], (
-            "/api/company-members?companyId=labrador&userId=felix",
+            "/api/product/owner/company-members?companyId=labrador&userId=felix",
             "DELETE",
         ))
         self.assertEqual(calls[4], (
