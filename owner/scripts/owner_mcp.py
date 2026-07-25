@@ -236,14 +236,17 @@ TOOLS = [
     },
     {
         "name": "lenin_owner_project_create",
-        "description": "Create an independent project and optionally allocate one active user as the person responsible for its result.",
+        "description": "Create an independent root or child project and optionally allocate one active user as the person responsible for its result.",
         "inputSchema": {
             "type": "object",
             "required": ["name", "confirmed"],
             "properties": {
                 "name": {"type": "string"},
                 "description": {"type": "string"},
-                "company_id": {"type": "string", "description": "Optional company id."},
+                "company_id": {"type": "string", "description": "Company id. A child project inherits its parent's company when omitted."},
+                "parent_project_id": {"type": "string", "description": "Parent project id. Omit for a root project."},
+                "inherit_members": {"type": "boolean", "default": True},
+                "inherit_materials": {"type": "boolean", "default": True},
                 "result_owner_login": {"type": "string"},
                 "result_owner_role": {"type": "string", "enum": ["contributor", "project-owner"]},
                 "confirmed": {"type": "boolean"},
@@ -253,7 +256,7 @@ TOOLS = [
     },
     {
         "name": "lenin_owner_project_update",
-        "description": "Update a project's identity or company without changing direct memberships.",
+        "description": "Update a project's identity, company, parent or downward inheritance switches without changing direct memberships.",
         "inputSchema": {
             "type": "object",
             "required": ["project_id", "confirmed"],
@@ -262,6 +265,9 @@ TOOLS = [
                 "name": {"type": "string"},
                 "description": {"type": "string"},
                 "company_id": {"type": "string"},
+                "parent_project_id": {"type": "string", "description": "Parent project id, or an empty string to make the project a root."},
+                "inherit_members": {"type": "boolean"},
+                "inherit_materials": {"type": "boolean"},
                 "confirmed": {"type": "boolean"},
             },
             "additionalProperties": False,
@@ -529,8 +535,14 @@ def call(name: str, args: dict) -> dict:
             "name": args.get("name"),
             "description": args.get("description", ""),
         }
-        if "company_id" in args:
-            body["companyId"] = args["company_id"]
+        for source, target in (
+            ("company_id", "companyId"),
+            ("parent_project_id", "parentProjectId"),
+            ("inherit_members", "inheritMembers"),
+            ("inherit_materials", "inheritMaterials"),
+        ):
+            if source in args:
+                body[target] = args[source]
         if str(args.get("result_owner_login") or "").strip():
             body["resultOwnerUserId"] = args.get("result_owner_login")
             body["resultOwnerRole"] = args.get("result_owner_role") or "contributor"
@@ -538,8 +550,14 @@ def call(name: str, args: dict) -> dict:
     if name == "lenin_owner_project_update":
         project = segment(args.get("project_id"), "project_id")
         body = {key: args[key] for key in ("name", "description") if key in args}
-        if "company_id" in args:
-            body["companyId"] = args["company_id"]
+        for source, target in (
+            ("company_id", "companyId"),
+            ("parent_project_id", "parentProjectId"),
+            ("inherit_members", "inheritMembers"),
+            ("inherit_materials", "inheritMaterials"),
+        ):
+            if source in args:
+                body[target] = args[source]
         if not body:
             raise ValueError("Укажите хотя бы одно изменяемое поле проекта.")
         return request(f"/api/admin/projects/{project}", method="PATCH", body=body)
@@ -678,6 +696,9 @@ def compact_project(project: dict) -> dict:
         "status": project.get("status"),
         "company_id": project.get("companyId") or "",
         "company_name": project.get("companyName") or "",
+        "parent_project_id": project.get("parentProjectId") or "",
+        "inherit_members": bool(project.get("inheritMembers", True)),
+        "inherit_materials": bool(project.get("inheritMaterials", True)),
         "result_owner_login": project.get("resultOwnerUserId") or "",
         "result_owner_name": project.get("resultOwnerName") or "",
         "member_count": project.get("memberCount", 0),

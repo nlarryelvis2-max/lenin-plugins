@@ -42,12 +42,12 @@ class OwnerMcpTest(unittest.TestCase):
             "lenin_owner_team_chat_post",
         }.issubset(names))
         create = next(tool for tool in owner_mcp.TOOLS if tool["name"] == "lenin_owner_project_create")
-        self.assertIn("company_id", create["inputSchema"]["properties"])
         self.assertTrue({
+            "company_id",
             "parent_project_id",
             "inherit_members",
             "inherit_materials",
-        }.isdisjoint(create["inputSchema"]["properties"]))
+        }.issubset(create["inputSchema"]["properties"]))
 
     def test_user_list_filters_and_resolves_project_names(self):
         overview = {
@@ -206,6 +206,9 @@ class OwnerMcpTest(unittest.TestCase):
             owner_mcp.call("lenin_owner_project_create", {
                 "name": "Новый проект",
                 "company_id": "labrador",
+                "parent_project_id": "p-parent",
+                "inherit_members": True,
+                "inherit_materials": False,
                 "result_owner_login": "sasha",
                 "result_owner_role": "project-owner",
                 "confirmed": True,
@@ -231,7 +234,9 @@ class OwnerMcpTest(unittest.TestCase):
         self.assertEqual(calls[0][0:2], ("/api/admin/projects", "POST"))
         self.assertEqual(calls[0][2]["resultOwnerUserId"], "sasha")
         self.assertEqual(calls[0][2]["companyId"], "labrador")
-        self.assertNotIn("parentProjectId", calls[0][2])
+        self.assertEqual(calls[0][2]["parentProjectId"], "p-parent")
+        self.assertEqual(calls[0][2]["inheritMembers"], True)
+        self.assertEqual(calls[0][2]["inheritMaterials"], False)
         self.assertEqual(calls[1], (
             "/api/admin/projects/p-one",
             "PATCH",
