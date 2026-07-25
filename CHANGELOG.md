@@ -1,5 +1,11 @@
 # Changelog
 
+## Lenin Owner 0.6.1
+
+- Исправлена регрессия `0.6.0`: Owner MCP снова создаёт и обновляет дочерние
+  project workspaces через `parent_project_id`, `inherit_members` и
+  `inherit_materials`, сохраняя новые company-tools.
+
 ## Lenin Owner 0.6.0
 
 - Добавлены отдельные owner-инструменты для списков и карточек компаний и

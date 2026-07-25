@@ -43,7 +43,7 @@
     {
       "name": "lenin-owner",
       "displayName": "Lenin Owner MCP",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "source": "./owner",
       "strict": true,
       "description": "Отдельный административный MCP только для глобальных владельцев Ленина",
