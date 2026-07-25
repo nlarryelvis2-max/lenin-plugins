@@ -116,14 +116,17 @@ TOOLS = [
     },
     {
         "name": "lenin_owner_project_create",
-        "description": "Create a project and optionally allocate one active user as the person responsible for its result.",
+        "description": "Create a root project or subproject and optionally allocate one active user as the person responsible for its result.",
         "inputSchema": {
             "type": "object",
             "required": ["name", "confirmed"],
             "properties": {
                 "name": {"type": "string"},
                 "description": {"type": "string"},
-                "company": {"type": "string"},
+                "company_id": {"type": "string", "description": "Company id. A subproject inherits its parent's company when omitted."},
+                "parent_project_id": {"type": "string", "description": "Parent project id. Omit for a root project."},
+                "inherit_members": {"type": "boolean", "default": True},
+                "inherit_materials": {"type": "boolean", "default": True},
                 "result_owner_login": {"type": "string"},
                 "result_owner_role": {"type": "string", "enum": ["contributor", "project-owner"]},
                 "confirmed": {"type": "boolean"},
@@ -133,7 +136,7 @@ TOOLS = [
     },
     {
         "name": "lenin_owner_project_update",
-        "description": "Update a project's name, description or company without changing memberships.",
+        "description": "Update a project's identity, hierarchy or inheritance switches without changing direct memberships.",
         "inputSchema": {
             "type": "object",
             "required": ["project_id", "confirmed"],
@@ -141,7 +144,10 @@ TOOLS = [
                 "project_id": {"type": "string"},
                 "name": {"type": "string"},
                 "description": {"type": "string"},
-                "company": {"type": "string"},
+                "company_id": {"type": "string"},
+                "parent_project_id": {"type": "string", "description": "Parent project id, or an empty string to make the project a root."},
+                "inherit_members": {"type": "boolean"},
+                "inherit_materials": {"type": "boolean"},
                 "confirmed": {"type": "boolean"},
             },
             "additionalProperties": False,
@@ -360,15 +366,30 @@ def call(name: str, args: dict) -> dict:
         body = {
             "name": args.get("name"),
             "description": args.get("description", ""),
-            "company": args.get("company", ""),
         }
+        for source, target in (
+            ("company_id", "companyId"),
+            ("parent_project_id", "parentProjectId"),
+            ("inherit_members", "inheritMembers"),
+            ("inherit_materials", "inheritMaterials"),
+        ):
+            if source in args:
+                body[target] = args[source]
         if str(args.get("result_owner_login") or "").strip():
             body["resultOwnerUserId"] = args.get("result_owner_login")
             body["resultOwnerRole"] = args.get("result_owner_role") or "contributor"
         return request("/api/admin/projects", method="POST", body=body)
     if name == "lenin_owner_project_update":
         project = segment(args.get("project_id"), "project_id")
-        body = {key: args[key] for key in ("name", "description", "company") if key in args}
+        body = {key: args[key] for key in ("name", "description") if key in args}
+        for source, target in (
+            ("company_id", "companyId"),
+            ("parent_project_id", "parentProjectId"),
+            ("inherit_members", "inheritMembers"),
+            ("inherit_materials", "inheritMaterials"),
+        ):
+            if source in args:
+                body[target] = args[source]
         if not body:
             raise ValueError("Укажите хотя бы одно изменяемое поле проекта.")
         return request(f"/api/admin/projects/{project}", method="PATCH", body=body)
@@ -454,12 +475,14 @@ def find_user(overview: dict, login: object) -> dict:
 def compact_user(user: dict, overview: dict) -> dict:
     projects = {item.get("id"): item for item in overview.get("projects", [])}
     grants = []
-    for grant in user.get("projects", []):
+    for grant in user.get("effectiveProjects") or user.get("projects", []):
         project = projects.get(grant.get("projectId"), {})
         grants.append({
             "project_id": grant.get("projectId"),
             "project_name": project.get("name") or grant.get("projectId"),
             "role": grant.get("role"),
+            "access_source": grant.get("accessSource") or "membership",
+            "inherited_from_project_id": grant.get("inheritedFromProjectId") or "",
         })
     connection = user.get("uplink") or {}
     return {
@@ -500,7 +523,10 @@ def user_list(args: dict) -> dict:
             continue
         if args.get("uplink_state") and (user.get("uplink") or {}).get("state") != args["uplink_state"]:
             continue
-        project_ids = {grant.get("projectId") for grant in user.get("projects", [])}
+        project_ids = {
+            grant.get("projectId")
+            for grant in user.get("effectiveProjects") or user.get("projects", [])
+        }
         if project_id and not user.get("allProjects") and project_id not in project_ids:
             continue
         result.append(compact_user(user, overview))
@@ -566,7 +592,7 @@ def main() -> None:
                 result = {
                     "protocolVersion": "2024-11-05",
                     "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "lenin-owner", "version": "0.4.0"},
+                    "serverInfo": {"name": "lenin-owner", "version": "0.5.0"},
                 }
             elif method == "notifications/initialized":
                 continue
