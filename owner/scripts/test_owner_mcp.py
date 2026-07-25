@@ -23,6 +23,15 @@ class OwnerMcpTest(unittest.TestCase):
             "lenin_owner_user_uplink_summary",
             "lenin_owner_user_password_reset",
             "lenin_owner_user_status_set",
+            "lenin_owner_company_list",
+            "lenin_owner_company_inspect",
+            "lenin_owner_company_create",
+            "lenin_owner_company_update",
+            "lenin_owner_company_member_set",
+            "lenin_owner_company_member_remove",
+            "lenin_owner_company_invite_create",
+            "lenin_owner_project_list",
+            "lenin_owner_project_inspect",
             "lenin_owner_project_create",
             "lenin_owner_project_result_owner_set",
             "lenin_owner_user_context_update",
@@ -33,12 +42,12 @@ class OwnerMcpTest(unittest.TestCase):
             "lenin_owner_team_chat_post",
         }.issubset(names))
         create = next(tool for tool in owner_mcp.TOOLS if tool["name"] == "lenin_owner_project_create")
+        self.assertIn("company_id", create["inputSchema"]["properties"])
         self.assertTrue({
-            "company_id",
             "parent_project_id",
             "inherit_members",
             "inherit_materials",
-        }.issubset(create["inputSchema"]["properties"]))
+        }.isdisjoint(create["inputSchema"]["properties"]))
 
     def test_user_list_filters_and_resolves_project_names(self):
         overview = {
@@ -101,6 +110,47 @@ class OwnerMcpTest(unittest.TestCase):
         self.assertIn("limit=100", calls[1][0])
         self.assertIn("offset=0", calls[1][0])
 
+    def test_company_and_project_directories_are_explicit_and_scoped(self):
+        overview = {
+            "companies": [{
+                "id": "labrador",
+                "name": "Лабрадор",
+                "description": "Компания",
+                "status": "active",
+                "memberCount": 1,
+                "projectCount": 1,
+            }],
+            "projects": [{
+                "id": "freec",
+                "name": "FreeC",
+                "description": "Проект",
+                "status": "active",
+                "companyId": "labrador",
+                "companyName": "Лабрадор",
+                "resultOwnerUserId": "felix",
+                "resultOwnerName": "Феликс",
+                "memberCount": 1,
+            }],
+            "users": [{
+                "id": "felix",
+                "name": "Феликс",
+                "role": "participant",
+                "status": "active",
+                "companies": [{"companyId": "labrador", "role": "company-owner"}],
+                "effectiveProjects": [{"projectId": "freec", "role": "project-owner", "accessSource": "membership"}],
+            }],
+        }
+        with patch.object(owner_mcp, "request", return_value=overview):
+            companies = owner_mcp.call("lenin_owner_company_list", {"query": "лаб"})
+            company = owner_mcp.call("lenin_owner_company_inspect", {"company_id": "labrador"})
+            projects = owner_mcp.call("lenin_owner_project_list", {"company_id": "labrador"})
+            project = owner_mcp.call("lenin_owner_project_inspect", {"project_id": "freec"})
+        self.assertEqual(companies["companies"][0]["company_id"], "labrador")
+        self.assertEqual(company["members"][0]["role"], "company-owner")
+        self.assertEqual(company["projects"][0]["project_id"], "freec")
+        self.assertEqual(projects["projects"][0]["company_name"], "Лабрадор")
+        self.assertEqual(project["participants"][0]["login"], "felix")
+
     def test_uplink_summary_falls_back_to_memory_without_private_content(self):
         calls = []
 
@@ -155,9 +205,7 @@ class OwnerMcpTest(unittest.TestCase):
         with patch.object(owner_mcp, "request", fake_request):
             owner_mcp.call("lenin_owner_project_create", {
                 "name": "Новый проект",
-                "parent_project_id": "p-parent",
-                "inherit_members": True,
-                "inherit_materials": False,
+                "company_id": "labrador",
                 "result_owner_login": "sasha",
                 "result_owner_role": "project-owner",
                 "confirmed": True,
@@ -182,9 +230,8 @@ class OwnerMcpTest(unittest.TestCase):
             })
         self.assertEqual(calls[0][0:2], ("/api/admin/projects", "POST"))
         self.assertEqual(calls[0][2]["resultOwnerUserId"], "sasha")
-        self.assertEqual(calls[0][2]["parentProjectId"], "p-parent")
-        self.assertEqual(calls[0][2]["inheritMembers"], True)
-        self.assertEqual(calls[0][2]["inheritMaterials"], False)
+        self.assertEqual(calls[0][2]["companyId"], "labrador")
+        self.assertNotIn("parentProjectId", calls[0][2])
         self.assertEqual(calls[1], (
             "/api/admin/projects/p-one",
             "PATCH",
@@ -193,6 +240,65 @@ class OwnerMcpTest(unittest.TestCase):
         self.assertEqual(calls[2][0:2], ("/api/admin/users/sasha/memory/context", "PUT"))
         self.assertEqual(calls[3][0], "/api/project-context?projectId=p-one")
         self.assertEqual(calls[4][0:2], ("/api/project-context", "PUT"))
+
+    def test_company_mutations_require_confirmation_and_use_company_routes(self):
+        calls = []
+        overview = {
+            "users": [{
+                "id": "felix",
+                "companies": [{"companyId": "labrador", "role": "company-member"}],
+            }],
+        }
+
+        def fake_request(path, *, method="GET", body=None, token=""):
+            calls.append((path, method, body))
+            return overview if path == "/api/admin/overview" else {"ok": True}
+
+        with patch.object(owner_mcp, "request", fake_request):
+            with self.assertRaisesRegex(ValueError, "confirmed=true"):
+                owner_mcp.call("lenin_owner_company_create", {"name": "Лабрадор"})
+            owner_mcp.call("lenin_owner_company_create", {
+                "name": "Лабрадор",
+                "owner_login": "felix",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_company_member_set", {
+                "company_id": "labrador",
+                "login": "felix",
+                "role": "company-owner",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_company_member_remove", {
+                "company_id": "labrador",
+                "login": "felix",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_company_invite_create", {
+                "company_id": "labrador",
+                "role": "company-member",
+                "ttl_ms": 900_000,
+                "confirmed": True,
+            })
+        self.assertEqual(calls[0], (
+            "/api/admin/companies",
+            "POST",
+            {"name": "Лабрадор", "description": "", "ownerUserId": "felix"},
+        ))
+        self.assertEqual(calls[1][0], "/api/admin/overview")
+        self.assertEqual(calls[2], (
+            "/api/company-members",
+            "PATCH",
+            {"companyId": "labrador", "userId": "felix", "role": "company-owner"},
+        ))
+        self.assertEqual(calls[3][0:2], (
+            "/api/company-members?companyId=labrador&userId=felix",
+            "DELETE",
+        ))
+        self.assertEqual(calls[4], (
+            "/api/admin/companies/labrador/invites",
+            "POST",
+            {"role": "company-member", "ttlMs": 900_000},
+        ))
 
     def test_owner_history_and_team_chat_are_audited_and_scoped(self):
         calls = []

@@ -13,8 +13,53 @@ from owner_client import request
 TOOLS = [
     {
         "name": "lenin_owner_overview",
-        "description": "List Lenin users, projects and current project grants. Global owner access only.",
+        "description": "List Lenin companies, projects, users and current grants. Global owner access only.",
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "lenin_owner_company_list",
+        "description": "Return a compact filterable company directory with member and project counts.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "status": {"type": "string", "enum": ["active", "archived"]},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_company_inspect",
+        "description": "Inspect one company, its explicit members and its independent projects.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["company_id"],
+            "properties": {"company_id": {"type": "string"}},
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_project_list",
+        "description": "Return a compact filterable project directory, optionally limited to one company.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "company_id": {"type": "string"},
+                "status": {"type": "string", "enum": ["active", "archived"]},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_project_inspect",
+        "description": "Inspect one project, its company, responsible person and effective participants.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["project_id"],
+            "properties": {"project_id": {"type": "string"}},
+            "additionalProperties": False,
+        },
     },
     {
         "name": "lenin_owner_user_list",
@@ -115,18 +160,90 @@ TOOLS = [
         },
     },
     {
-        "name": "lenin_owner_project_create",
-        "description": "Create a root project or subproject and optionally allocate one active user as the person responsible for its result.",
+        "name": "lenin_owner_company_create",
+        "description": "Create a company and optionally appoint one active non-guest user as company owner.",
         "inputSchema": {
             "type": "object",
             "required": ["name", "confirmed"],
             "properties": {
                 "name": {"type": "string"},
                 "description": {"type": "string"},
-                "company_id": {"type": "string", "description": "Company id. A subproject inherits its parent's company when omitted."},
-                "parent_project_id": {"type": "string", "description": "Parent project id. Omit for a root project."},
-                "inherit_members": {"type": "boolean", "default": True},
-                "inherit_materials": {"type": "boolean", "default": True},
+                "owner_login": {"type": "string"},
+                "confirmed": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_company_update",
+        "description": "Update a company's name, description or lifecycle status.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["company_id", "confirmed"],
+            "properties": {
+                "company_id": {"type": "string"},
+                "name": {"type": "string"},
+                "description": {"type": "string"},
+                "status": {"type": "string", "enum": ["active", "archived"]},
+                "confirmed": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_company_member_set",
+        "description": "Add a user to one company or update that existing company role.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["company_id", "login", "role", "confirmed"],
+            "properties": {
+                "company_id": {"type": "string"},
+                "login": {"type": "string"},
+                "role": {"type": "string", "enum": ["company-member", "company-owner"]},
+                "confirmed": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_company_member_remove",
+        "description": "Remove a user from one company and its projects after owner confirmation.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["company_id", "login", "confirmed"],
+            "properties": {
+                "company_id": {"type": "string"},
+                "login": {"type": "string"},
+                "confirmed": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_company_invite_create",
+        "description": "Create a time-limited company invitation and return its one-time code.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["company_id", "role", "confirmed"],
+            "properties": {
+                "company_id": {"type": "string"},
+                "role": {"type": "string", "enum": ["company-member", "company-owner"]},
+                "ttl_ms": {"type": "integer", "minimum": 300000, "maximum": 2592000000},
+                "confirmed": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_project_create",
+        "description": "Create an independent project and optionally allocate one active user as the person responsible for its result.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["name", "confirmed"],
+            "properties": {
+                "name": {"type": "string"},
+                "description": {"type": "string"},
+                "company_id": {"type": "string", "description": "Optional company id."},
                 "result_owner_login": {"type": "string"},
                 "result_owner_role": {"type": "string", "enum": ["contributor", "project-owner"]},
                 "confirmed": {"type": "boolean"},
@@ -136,7 +253,7 @@ TOOLS = [
     },
     {
         "name": "lenin_owner_project_update",
-        "description": "Update a project's identity, hierarchy or inheritance switches without changing direct memberships.",
+        "description": "Update a project's identity or company without changing direct memberships.",
         "inputSchema": {
             "type": "object",
             "required": ["project_id", "confirmed"],
@@ -145,9 +262,6 @@ TOOLS = [
                 "name": {"type": "string"},
                 "description": {"type": "string"},
                 "company_id": {"type": "string"},
-                "parent_project_id": {"type": "string", "description": "Parent project id, or an empty string to make the project a root."},
-                "inherit_members": {"type": "boolean"},
-                "inherit_materials": {"type": "boolean"},
                 "confirmed": {"type": "boolean"},
             },
             "additionalProperties": False,
@@ -320,6 +434,14 @@ TOOLS = [
 def call(name: str, args: dict) -> dict:
     if name == "lenin_owner_overview":
         return request("/api/admin/overview")
+    if name == "lenin_owner_company_list":
+        return company_list(args)
+    if name == "lenin_owner_company_inspect":
+        return company_inspect(args)
+    if name == "lenin_owner_project_list":
+        return project_list(args)
+    if name == "lenin_owner_project_inspect":
+        return project_inspect(args)
     if name == "lenin_owner_user_list":
         return user_list(args)
     if name == "lenin_owner_user_inspect":
@@ -362,19 +484,53 @@ def call(name: str, args: dict) -> dict:
         return request("/api/admin/users", method="POST", body={
             "id": args.get("login"), "name": args.get("name"), "role": "participant", "projectIds": [],
         })
+    if name == "lenin_owner_company_create":
+        body = {
+            "name": required_text(args.get("name"), "name"),
+            "description": str(args.get("description") or "").strip(),
+        }
+        if str(args.get("owner_login") or "").strip():
+            body["ownerUserId"] = required_text(args.get("owner_login"), "owner_login")
+        return request("/api/admin/companies", method="POST", body=body)
+    if name == "lenin_owner_company_update":
+        company = segment(args.get("company_id"), "company_id")
+        body = {key: args[key] for key in ("name", "description", "status") if key in args}
+        if not body:
+            raise ValueError("Укажите хотя бы одно изменяемое поле компании.")
+        return request(f"/api/admin/companies/{company}", method="PATCH", body=body)
+    if name == "lenin_owner_company_member_set":
+        company_id = required_text(args.get("company_id"), "company_id")
+        login = required_text(args.get("login"), "login")
+        overview = request("/api/admin/overview")
+        user = find_user(overview, login)
+        existing = any(
+            item.get("companyId") == company_id
+            for item in user.get("companies", [])
+        )
+        return request("/api/company-members", method="PATCH" if existing else "POST", body={
+            "companyId": company_id,
+            "userId": login,
+            "role": args.get("role"),
+        })
+    if name == "lenin_owner_company_member_remove":
+        query = urlencode({
+            "companyId": required_text(args.get("company_id"), "company_id"),
+            "userId": required_text(args.get("login"), "login"),
+        })
+        return request(f"/api/company-members?{query}", method="DELETE")
+    if name == "lenin_owner_company_invite_create":
+        company = segment(args.get("company_id"), "company_id")
+        body = {"role": args.get("role")}
+        if "ttl_ms" in args:
+            body["ttlMs"] = bounded_integer(args.get("ttl_ms"), 604_800_000, 300_000, 2_592_000_000)
+        return request(f"/api/admin/companies/{company}/invites", method="POST", body=body)
     if name == "lenin_owner_project_create":
         body = {
             "name": args.get("name"),
             "description": args.get("description", ""),
         }
-        for source, target in (
-            ("company_id", "companyId"),
-            ("parent_project_id", "parentProjectId"),
-            ("inherit_members", "inheritMembers"),
-            ("inherit_materials", "inheritMaterials"),
-        ):
-            if source in args:
-                body[target] = args[source]
+        if "company_id" in args:
+            body["companyId"] = args["company_id"]
         if str(args.get("result_owner_login") or "").strip():
             body["resultOwnerUserId"] = args.get("result_owner_login")
             body["resultOwnerRole"] = args.get("result_owner_role") or "contributor"
@@ -382,14 +538,8 @@ def call(name: str, args: dict) -> dict:
     if name == "lenin_owner_project_update":
         project = segment(args.get("project_id"), "project_id")
         body = {key: args[key] for key in ("name", "description") if key in args}
-        for source, target in (
-            ("company_id", "companyId"),
-            ("parent_project_id", "parentProjectId"),
-            ("inherit_members", "inheritMembers"),
-            ("inherit_materials", "inheritMaterials"),
-        ):
-            if source in args:
-                body[target] = args[source]
+        if "company_id" in args:
+            body["companyId"] = args["company_id"]
         if not body:
             raise ValueError("Укажите хотя бы одно изменяемое поле проекта.")
         return request(f"/api/admin/projects/{project}", method="PATCH", body=body)
@@ -509,6 +659,134 @@ def compact_user(user: dict, overview: dict) -> dict:
     }
 
 
+def compact_company(company: dict) -> dict:
+    return {
+        "company_id": company.get("id"),
+        "name": company.get("name"),
+        "description": company.get("description") or "",
+        "status": company.get("status"),
+        "member_count": company.get("memberCount", 0),
+        "project_count": company.get("projectCount", 0),
+    }
+
+
+def compact_project(project: dict) -> dict:
+    return {
+        "project_id": project.get("id"),
+        "name": project.get("name"),
+        "description": project.get("description") or "",
+        "status": project.get("status"),
+        "company_id": project.get("companyId") or "",
+        "company_name": project.get("companyName") or "",
+        "result_owner_login": project.get("resultOwnerUserId") or "",
+        "result_owner_name": project.get("resultOwnerName") or "",
+        "member_count": project.get("memberCount", 0),
+        "publication_status": project.get("publicationStatus") or "",
+        "public_url": project.get("publicUrl") or "",
+    }
+
+
+def find_company(overview: dict, company_id: object) -> dict:
+    target = str(company_id or "").strip()
+    for item in overview.get("companies", []):
+        if item.get("id") == target:
+            return item
+    raise ValueError(f"Компания {target or 'с пустым company_id'} не найдена.")
+
+
+def find_project(overview: dict, project_id: object) -> dict:
+    target = str(project_id or "").strip()
+    for item in overview.get("projects", []):
+        if item.get("id") == target:
+            return item
+    raise ValueError(f"Проект {target or 'с пустым project_id'} не найден.")
+
+
+def company_list(args: dict) -> dict:
+    overview = request("/api/admin/overview")
+    query = str(args.get("query") or "").strip().casefold()
+    companies = []
+    for company in overview.get("companies", []):
+        if query and query not in f"{company.get('id', '')} {company.get('name', '')}".casefold():
+            continue
+        if args.get("status") and company.get("status") != args["status"]:
+            continue
+        companies.append(compact_company(company))
+    companies.sort(key=lambda item: (item["name"] or item["company_id"] or "").casefold())
+    return {"count": len(companies), "companies": companies}
+
+
+def company_inspect(args: dict) -> dict:
+    overview = request("/api/admin/overview")
+    company = find_company(overview, args.get("company_id"))
+    company_id = company.get("id")
+    members = []
+    for user in overview.get("users", []):
+        membership = next(
+            (item for item in user.get("companies", []) if item.get("companyId") == company_id),
+            None,
+        )
+        if membership:
+            members.append({
+                "login": user.get("id"),
+                "name": user.get("name"),
+                "status": user.get("status"),
+                "role": membership.get("role"),
+            })
+    members.sort(key=lambda item: (item["name"] or item["login"] or "").casefold())
+    projects = [
+        compact_project(project)
+        for project in overview.get("projects", [])
+        if project.get("companyId") == company_id
+    ]
+    projects.sort(key=lambda item: (item["name"] or item["project_id"] or "").casefold())
+    return {"company": compact_company(company), "members": members, "projects": projects}
+
+
+def project_list(args: dict) -> dict:
+    overview = request("/api/admin/overview")
+    query = str(args.get("query") or "").strip().casefold()
+    company_id = str(args.get("company_id") or "").strip()
+    projects = []
+    for project in overview.get("projects", []):
+        if query and query not in f"{project.get('id', '')} {project.get('name', '')}".casefold():
+            continue
+        if company_id and project.get("companyId") != company_id:
+            continue
+        if args.get("status") and project.get("status") != args["status"]:
+            continue
+        projects.append(compact_project(project))
+    projects.sort(key=lambda item: (item["company_name"], item["name"] or item["project_id"] or ""))
+    return {"count": len(projects), "projects": projects}
+
+
+def project_inspect(args: dict) -> dict:
+    overview = request("/api/admin/overview")
+    project = find_project(overview, args.get("project_id"))
+    project_id = project.get("id")
+    participants = []
+    for user in overview.get("users", []):
+        grant = next(
+            (
+                item
+                for item in user.get("effectiveProjects") or user.get("projects", [])
+                if item.get("projectId") == project_id
+            ),
+            None,
+        )
+        if not grant and not user.get("allProjects"):
+            continue
+        participants.append({
+            "login": user.get("id"),
+            "name": user.get("name"),
+            "status": user.get("status"),
+            "role": grant.get("role") if grant else user.get("role"),
+            "access_source": grant.get("accessSource") if grant else "global-role",
+        })
+    participants.sort(key=lambda item: (item["name"] or item["login"] or "").casefold())
+    return {"project": compact_project(project), "participants": participants}
+
+
 def user_list(args: dict) -> dict:
     overview = request("/api/admin/overview")
     query = str(args.get("query") or "").strip().casefold()
@@ -592,7 +870,7 @@ def main() -> None:
                 result = {
                     "protocolVersion": "2024-11-05",
                     "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "lenin-owner", "version": "0.5.0"},
+                    "serverInfo": {"name": "lenin-owner", "version": "0.6.0"},
                 }
             elif method == "notifications/initialized":
                 continue
