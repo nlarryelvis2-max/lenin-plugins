@@ -16,6 +16,8 @@ class OwnerMcpTest(unittest.TestCase):
     def test_tool_list_includes_bounded_owner_operations(self):
         names = {tool["name"] for tool in owner_mcp.TOOLS}
         self.assertTrue({
+            "lenin_owner_capabilities",
+            "lenin_owner_portfolio_digest",
             "lenin_owner_user_list",
             "lenin_owner_user_inspect",
             "lenin_owner_user_context_read",
@@ -32,7 +34,15 @@ class OwnerMcpTest(unittest.TestCase):
             "lenin_owner_company_invite_create",
             "lenin_owner_project_list",
             "lenin_owner_project_inspect",
+            "lenin_owner_project_digest",
+            "lenin_owner_project_documents_list",
+            "lenin_owner_project_document_read",
             "lenin_owner_project_create",
+            "lenin_owner_project_archive",
+            "lenin_owner_project_restore",
+            "lenin_owner_project_invite_create",
+            "lenin_owner_project_guest_link_create",
+            "lenin_owner_project_delegate",
             "lenin_owner_project_result_owner_set",
             "lenin_owner_user_context_update",
             "lenin_owner_project_context_read",
@@ -40,6 +50,8 @@ class OwnerMcpTest(unittest.TestCase):
             "lenin_owner_user_history_read",
             "lenin_owner_team_chat_read",
             "lenin_owner_team_chat_post",
+            "lenin_owner_user_archive",
+            "lenin_owner_user_restore",
         }.issubset(names))
         create = next(tool for tool in owner_mcp.TOOLS if tool["name"] == "lenin_owner_project_create")
         self.assertTrue({
@@ -48,6 +60,118 @@ class OwnerMcpTest(unittest.TestCase):
             "inherit_members",
             "inherit_materials",
         }.issubset(create["inputSchema"]["properties"]))
+        self.assertEqual(len(names), len(owner_mcp.TOOLS))
+
+    def test_control_plane_reads_are_bounded_and_scoped(self):
+        calls = []
+
+        def fake_request(path, *, method="GET", body=None, token=""):
+            calls.append((path, method, body))
+            return {"ok": True}
+
+        with patch.object(owner_mcp, "request", fake_request):
+            owner_mcp.call("lenin_owner_capabilities", {})
+            owner_mcp.call("lenin_owner_portfolio_digest", {
+                "after_sequence": -50,
+                "include_archived": True,
+                "limit": 500,
+            })
+            owner_mcp.call("lenin_owner_project_digest", {
+                "project_id": "project one",
+                "after_sequence": 17,
+            })
+            owner_mcp.call("lenin_owner_project_documents_list", {"project_id": "project one"})
+            owner_mcp.call("lenin_owner_project_document_read", {
+                "project_id": "project one",
+                "document": "roadmap",
+            })
+
+        self.assertEqual(calls[0][0], "/api/product/owner/capabilities")
+        self.assertIn("/api/product/owner/portfolio-digest?", calls[1][0])
+        self.assertIn("afterSequence=0", calls[1][0])
+        self.assertIn("includeArchived=true", calls[1][0])
+        self.assertIn("limit=200", calls[1][0])
+        self.assertIn("/api/product/owner/projects/project%20one/digest?", calls[2][0])
+        self.assertIn("afterSequence=17", calls[2][0])
+        self.assertEqual(calls[3][0], "/api/product/owner/projects/project%20one/documents")
+        self.assertEqual(calls[4][0], "/api/product/owner/projects/project%20one/documents/roadmap")
+
+    def test_project_delegate_and_lifecycle_tools_preserve_idempotency_and_confirmation(self):
+        calls = []
+
+        def fake_request(path, *, method="GET", body=None, token=""):
+            calls.append((path, method, body))
+            return {"ok": True}
+
+        with patch.object(owner_mcp, "request", fake_request):
+            with self.assertRaisesRegex(ValueError, "confirmed=true"):
+                owner_mcp.call("lenin_owner_project_delegate", {
+                    "project_id": "luna",
+                    "instruction": "Собери итог",
+                    "operation_id": "delegate-123",
+                })
+            with self.assertRaisesRegex(ValueError, "operation_id"):
+                owner_mcp.call("lenin_owner_project_delegate", {
+                    "project_id": "luna",
+                    "instruction": "Собери итог",
+                    "operation_id": "bad id",
+                    "confirmed": True,
+                })
+            owner_mcp.call("lenin_owner_project_delegate", {
+                "project_id": "luna",
+                "instruction": "Собери итог",
+                "operation_id": "delegate-123",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_project_archive", {
+                "project_id": "luna",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_project_restore", {
+                "project_id": "luna",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_project_invite_create", {
+                "project_id": "luna",
+                "role": "contributor",
+                "user_role": "participant",
+                "ttl_ms": 900_000,
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_project_guest_link_create", {
+                "project_id": "luna",
+                "name": "Внешний эксперт",
+                "job_title": "Дизайнер",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_user_archive", {
+                "login": "alisa",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_user_restore", {
+                "login": "alisa",
+                "confirmed": True,
+            })
+
+        self.assertEqual(calls[0], (
+            "/api/product/owner/projects/luna/delegate",
+            "POST",
+            {"instruction": "Собери итог", "operationId": "delegate-123", "confirmed": True},
+        ))
+        self.assertEqual(calls[1][2], {"status": "archived"})
+        self.assertEqual(calls[2][2], {"status": "active"})
+        self.assertEqual(calls[3], (
+            "/api/admin/projects/luna/invites",
+            "POST",
+            {"role": "contributor", "userRole": "participant", "ttlMs": 900_000},
+        ))
+        self.assertEqual(calls[4], (
+            "/api/admin/projects/luna/guest-links",
+            "POST",
+            {"name": "Внешний эксперт", "jobTitle": "Дизайнер"},
+        ))
+        self.assertEqual(calls[5][2], {"status": "disabled"})
+        self.assertEqual(calls[6][2], {"status": "active"})
 
     def test_user_list_filters_and_resolves_project_names(self):
         overview = {
@@ -205,6 +329,7 @@ class OwnerMcpTest(unittest.TestCase):
         with patch.object(owner_mcp, "request", fake_request):
             owner_mcp.call("lenin_owner_project_create", {
                 "name": "Новый проект",
+                "icon": "🌙",
                 "company_id": "labrador",
                 "parent_project_id": "p-parent",
                 "inherit_members": True,
@@ -233,6 +358,7 @@ class OwnerMcpTest(unittest.TestCase):
             })
         self.assertEqual(calls[0][0:2], ("/api/admin/projects", "POST"))
         self.assertEqual(calls[0][2]["resultOwnerUserId"], "sasha")
+        self.assertEqual(calls[0][2]["icon"], "🌙")
         self.assertEqual(calls[0][2]["companyId"], "labrador")
         self.assertEqual(calls[0][2]["parentProjectId"], "p-parent")
         self.assertEqual(calls[0][2]["inheritMembers"], True)

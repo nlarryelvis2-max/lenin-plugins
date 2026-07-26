@@ -6,6 +6,7 @@ import json
 import os
 import platform
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -13,6 +14,8 @@ from pathlib import Path
 BASE = Path.home() / ".claude" / "lenin_owner"
 CONFIG = BASE / "config.json"
 PROD_BASE = "https://lenin.nglain.com"
+PLUGIN_VERSION = "0.7.0"
+RETRYABLE_HTTP = {429, 502, 503, 504}
 
 
 def load_config() -> dict:
@@ -51,27 +54,44 @@ def request(path: str, *, method: str = "GET", body: dict | None = None, token: 
     if not credential:
         raise ValueError("Owner MCP не подключён: выполните /lenin-owner:connect <код>")
     data = json.dumps(body).encode("utf-8") if body is not None else None
-    req = urllib.request.Request(
-        f"{base_url(config)}{path}",
-        data=data,
-        method=method,
-        headers={
-            "Authorization": f"Bearer {credential}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
+    idempotent_delegate = (
+        method == "POST"
+        and path.endswith("/delegate")
+        and isinstance(body, dict)
+        and bool(str(body.get("operationId") or "").strip())
     )
-    try:
-        with urllib.request.urlopen(req, timeout=30) as response:
-            return json.loads(response.read().decode("utf-8") or "{}")
-    except urllib.error.HTTPError as error:
+    attempts = 3 if method == "GET" or idempotent_delegate else 1
+    for attempt in range(attempts):
+        req = urllib.request.Request(
+            f"{base_url(config)}{path}",
+            data=data,
+            method=method,
+            headers={
+                "Authorization": f"Bearer {credential}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "X-Lenin-Owner-Plugin-Version": PLUGIN_VERSION,
+            },
+        )
         try:
-            message = json.loads(error.read().decode("utf-8")).get("error")
-        except Exception:
-            message = ""
-        raise ValueError(message or f"платформа ответила HTTP {error.code}") from error
-    except urllib.error.URLError as error:
-        raise ValueError(f"платформа недоступна: {error.reason}") from error
+            with urllib.request.urlopen(req, timeout=45 if idempotent_delegate else 30) as response:
+                return json.loads(response.read().decode("utf-8") or "{}")
+        except urllib.error.HTTPError as error:
+            if error.code in RETRYABLE_HTTP and attempt + 1 < attempts:
+                time.sleep(0.25 * (2 ** attempt))
+                continue
+            try:
+                message = json.loads(error.read().decode("utf-8")).get("error")
+            except Exception:
+                message = ""
+            raise ValueError(message or f"платформа ответила HTTP {error.code}") from error
+        except (urllib.error.URLError, TimeoutError) as error:
+            if attempt + 1 < attempts:
+                time.sleep(0.25 * (2 ** attempt))
+                continue
+            reason = getattr(error, "reason", error)
+            raise ValueError(f"платформа недоступна: {reason}") from error
+    raise ValueError("платформа недоступна")
 
 
 def register(code: str) -> dict:

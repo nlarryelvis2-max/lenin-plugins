@@ -1,5 +1,20 @@
 # Changelog
 
+## Lenin Owner 0.7.0
+
+- Добавлены portfolio/project digest с общими документами, материалами,
+  обязательствами, уточнениями, heartbeat/autopilot receipts и статусами
+  интеграций без выдачи private project files.
+- `project_delegate` запускает обычный проектный turn Ленина с существующим
+  Project MCP и возвращает durable message/trace receipt; повтор с тем же
+  `operation_id` восстанавливает результат без второго запуска.
+- Добавлены project archive/restore, приглашения, гостевые ссылки, user
+  archive/restore aliases и редактирование иконок.
+- Read-запросы и идемпотентные delegate-запросы получили bounded retries;
+  обычные mutations автоматически не повторяются.
+- Добавлен live capabilities handshake для проверки совместимости платформы и
+  Owner MCP.
+
 ## Lenin Owner 0.6.1
 
 - Исправлена регрессия `0.6.0`: Owner MCP снова создаёт и обновляет дочерние

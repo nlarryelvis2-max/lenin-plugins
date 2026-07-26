@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from urllib.parse import quote, urlencode
@@ -15,6 +16,24 @@ TOOLS = [
         "name": "lenin_owner_overview",
         "description": "List Lenin companies, projects, users and current grants. Global owner access only.",
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "lenin_owner_capabilities",
+        "description": "Check the live platform owner API version, feature support and recommended Owner MCP version.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "lenin_owner_portfolio_digest",
+        "description": "Read an evidence-backed portfolio digest with companies, projects, accountable people, tasks, heartbeat receipts, new team messages and typed attention items.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "after_sequence": {"type": "integer", "minimum": 0, "default": 0},
+                "include_archived": {"type": "boolean", "default": False},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 200, "default": 200},
+            },
+            "additionalProperties": False,
+        },
     },
     {
         "name": "lenin_owner_company_list",
@@ -58,6 +77,45 @@ TOOLS = [
             "type": "object",
             "required": ["project_id"],
             "properties": {"project_id": {"type": "string"}},
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_project_digest",
+        "description": "Read one complete project-visible digest: documents, history, shared materials, commitments, clarifications, autopilot receipts, integrations and new team messages.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["project_id"],
+            "properties": {
+                "project_id": {"type": "string"},
+                "after_sequence": {"type": "integer", "minimum": 0, "default": 0},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_project_documents_list",
+        "description": "List the five canonical project documents with update time and a bounded excerpt.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["project_id"],
+            "properties": {"project_id": {"type": "string"}},
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_project_document_read",
+        "description": "Read one canonical shared project document in full.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["project_id", "document"],
+            "properties": {
+                "project_id": {"type": "string"},
+                "document": {
+                    "type": "string",
+                    "enum": ["brief", "context", "roadmap", "decisions", "chronicle"],
+                },
+            },
             "additionalProperties": False,
         },
     },
@@ -168,6 +226,7 @@ TOOLS = [
             "properties": {
                 "name": {"type": "string"},
                 "description": {"type": "string"},
+                "icon": {"type": "string", "description": "Optional short emoji or icon, up to 8 Unicode characters."},
                 "owner_login": {"type": "string"},
                 "confirmed": {"type": "boolean"},
             },
@@ -184,6 +243,7 @@ TOOLS = [
                 "company_id": {"type": "string"},
                 "name": {"type": "string"},
                 "description": {"type": "string"},
+                "icon": {"type": "string", "description": "Optional short emoji or icon, up to 8 Unicode characters."},
                 "status": {"type": "string", "enum": ["active", "archived"]},
                 "confirmed": {"type": "boolean"},
             },
@@ -243,6 +303,7 @@ TOOLS = [
             "properties": {
                 "name": {"type": "string"},
                 "description": {"type": "string"},
+                "icon": {"type": "string", "description": "Optional short emoji or icon, up to 8 Unicode characters."},
                 "company_id": {"type": "string", "description": "Company id. A child project inherits its parent's company when omitted."},
                 "parent_project_id": {"type": "string", "description": "Parent project id. Omit for a root project."},
                 "inherit_members": {"type": "boolean", "default": True},
@@ -264,10 +325,88 @@ TOOLS = [
                 "project_id": {"type": "string"},
                 "name": {"type": "string"},
                 "description": {"type": "string"},
+                "icon": {"type": "string", "description": "Optional short emoji or icon, up to 8 Unicode characters."},
+                "status": {"type": "string", "enum": ["active", "archived"]},
                 "company_id": {"type": "string"},
                 "parent_project_id": {"type": "string", "description": "Parent project id, or an empty string to make the project a root."},
                 "inherit_members": {"type": "boolean"},
                 "inherit_materials": {"type": "boolean"},
+                "confirmed": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_project_archive",
+        "description": "Archive one project after confirmation. Active subprojects must be archived first.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["project_id", "confirmed"],
+            "properties": {
+                "project_id": {"type": "string"},
+                "confirmed": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_project_restore",
+        "description": "Restore one archived project after confirmation. Its company and parent chain must already be active.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["project_id", "confirmed"],
+            "properties": {
+                "project_id": {"type": "string"},
+                "confirmed": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_project_invite_create",
+        "description": "Create a time-limited invitation for an existing or new participant and return its one-time code.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["project_id", "role", "user_role", "confirmed"],
+            "properties": {
+                "project_id": {"type": "string"},
+                "role": {"type": "string", "enum": ["viewer", "contributor", "project-owner"]},
+                "user_role": {"type": "string", "enum": ["participant", "guest"]},
+                "ttl_ms": {"type": "integer", "minimum": 300000, "maximum": 2592000000},
+                "confirmed": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_project_guest_link_create",
+        "description": "Create a dedicated guest profile and one-time magic project link for an external participant.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["project_id", "name", "job_title", "confirmed"],
+            "properties": {
+                "project_id": {"type": "string"},
+                "name": {"type": "string"},
+                "job_title": {"type": "string"},
+                "confirmed": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_project_delegate",
+        "description": "Publish a durable owner instruction and run the normal Lenin agent inside exactly one project with its existing Project MCP, materials, memory and delivery verification.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["project_id", "instruction", "operation_id", "confirmed"],
+            "properties": {
+                "project_id": {"type": "string"},
+                "instruction": {"type": "string", "minLength": 3, "maxLength": 20000},
+                "operation_id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{8,128}$",
+                    "description": "Stable id for retries. Reuse the same value for the same logical instruction.",
+                },
                 "confirmed": {"type": "boolean"},
             },
             "additionalProperties": False,
@@ -413,6 +552,32 @@ TOOLS = [
         },
     },
     {
+        "name": "lenin_owner_user_archive",
+        "description": "Archive (disable) one user account without deleting its history or grants.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["login", "confirmed"],
+            "properties": {
+                "login": {"type": "string"},
+                "confirmed": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_user_restore",
+        "description": "Restore one disabled user account without changing its role or project grants.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["login", "confirmed"],
+            "properties": {
+                "login": {"type": "string"},
+                "confirmed": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "lenin_owner_users_bootstrap",
         "description": "Create multiple permanent participant accounts without projects and write credentials to a local mode-0600 TSV file. Existing logins are skipped and never reset.",
         "inputSchema": {
@@ -440,6 +605,15 @@ TOOLS = [
 def call(name: str, args: dict) -> dict:
     if name == "lenin_owner_overview":
         return request("/api/admin/overview")
+    if name == "lenin_owner_capabilities":
+        return request("/api/product/owner/capabilities")
+    if name == "lenin_owner_portfolio_digest":
+        query = urlencode({
+            "afterSequence": bounded_integer(args.get("after_sequence"), 0, 0, 2_147_483_647),
+            "includeArchived": "true" if args.get("include_archived") else "false",
+            "limit": bounded_integer(args.get("limit"), 200, 1, 200),
+        })
+        return request(f"/api/product/owner/portfolio-digest?{query}")
     if name == "lenin_owner_company_list":
         return company_list(args)
     if name == "lenin_owner_company_inspect":
@@ -448,6 +622,19 @@ def call(name: str, args: dict) -> dict:
         return project_list(args)
     if name == "lenin_owner_project_inspect":
         return project_inspect(args)
+    if name == "lenin_owner_project_digest":
+        project = segment(args.get("project_id"), "project_id")
+        query = urlencode({
+            "afterSequence": bounded_integer(args.get("after_sequence"), 0, 0, 2_147_483_647),
+        })
+        return request(f"/api/product/owner/projects/{project}/digest?{query}")
+    if name == "lenin_owner_project_documents_list":
+        project = segment(args.get("project_id"), "project_id")
+        return request(f"/api/product/owner/projects/{project}/documents")
+    if name == "lenin_owner_project_document_read":
+        project = segment(args.get("project_id"), "project_id")
+        document = segment(args.get("document"), "document")
+        return request(f"/api/product/owner/projects/{project}/documents/{document}")
     if name == "lenin_owner_user_list":
         return user_list(args)
     if name == "lenin_owner_user_inspect":
@@ -495,12 +682,14 @@ def call(name: str, args: dict) -> dict:
             "name": required_text(args.get("name"), "name"),
             "description": str(args.get("description") or "").strip(),
         }
+        if "icon" in args:
+            body["icon"] = str(args.get("icon") or "").strip()
         if str(args.get("owner_login") or "").strip():
             body["ownerUserId"] = required_text(args.get("owner_login"), "owner_login")
         return request("/api/admin/companies", method="POST", body=body)
     if name == "lenin_owner_company_update":
         company = segment(args.get("company_id"), "company_id")
-        body = {key: args[key] for key in ("name", "description", "status") if key in args}
+        body = {key: args[key] for key in ("name", "description", "icon", "status") if key in args}
         if not body:
             raise ValueError("Укажите хотя бы одно изменяемое поле компании.")
         return request(f"/api/admin/companies/{company}", method="PATCH", body=body)
@@ -535,6 +724,8 @@ def call(name: str, args: dict) -> dict:
             "name": args.get("name"),
             "description": args.get("description", ""),
         }
+        if "icon" in args:
+            body["icon"] = str(args.get("icon") or "").strip()
         for source, target in (
             ("company_id", "companyId"),
             ("parent_project_id", "parentProjectId"),
@@ -549,7 +740,7 @@ def call(name: str, args: dict) -> dict:
         return request("/api/admin/projects", method="POST", body=body)
     if name == "lenin_owner_project_update":
         project = segment(args.get("project_id"), "project_id")
-        body = {key: args[key] for key in ("name", "description") if key in args}
+        body = {key: args[key] for key in ("name", "description", "icon", "status") if key in args}
         for source, target in (
             ("company_id", "companyId"),
             ("parent_project_id", "parentProjectId"),
@@ -561,6 +752,32 @@ def call(name: str, args: dict) -> dict:
         if not body:
             raise ValueError("Укажите хотя бы одно изменяемое поле проекта.")
         return request(f"/api/admin/projects/{project}", method="PATCH", body=body)
+    if name in {"lenin_owner_project_archive", "lenin_owner_project_restore"}:
+        project = segment(args.get("project_id"), "project_id")
+        status = "archived" if name.endswith("_archive") else "active"
+        return request(f"/api/admin/projects/{project}", method="PATCH", body={"status": status})
+    if name == "lenin_owner_project_invite_create":
+        project = segment(args.get("project_id"), "project_id")
+        body = {
+            "role": args.get("role"),
+            "userRole": args.get("user_role"),
+        }
+        if "ttl_ms" in args:
+            body["ttlMs"] = bounded_integer(args.get("ttl_ms"), 604_800_000, 300_000, 2_592_000_000)
+        return request(f"/api/admin/projects/{project}/invites", method="POST", body=body)
+    if name == "lenin_owner_project_guest_link_create":
+        project = segment(args.get("project_id"), "project_id")
+        return request(f"/api/admin/projects/{project}/guest-links", method="POST", body={
+            "name": required_text(args.get("name"), "name"),
+            "jobTitle": required_text(args.get("job_title"), "job_title"),
+        })
+    if name == "lenin_owner_project_delegate":
+        project = segment(args.get("project_id"), "project_id")
+        return request(f"/api/product/owner/projects/{project}/delegate", method="POST", body={
+            "instruction": required_text(args.get("instruction"), "instruction"),
+            "operationId": required_operation_id(args),
+            "confirmed": True,
+        })
     if name == "lenin_owner_project_result_owner_set":
         project = segment(args.get("project_id"), "project_id")
         return request(f"/api/admin/projects/{project}", method="PATCH", body={
@@ -596,6 +813,10 @@ def call(name: str, args: dict) -> dict:
     if name == "lenin_owner_user_status_set":
         login = segment(args.get("login"), "login")
         return request(f"/api/admin/users/{login}", method="PATCH", body={"status": args.get("status")})
+    if name in {"lenin_owner_user_archive", "lenin_owner_user_restore"}:
+        login = segment(args.get("login"), "login")
+        status = "disabled" if name.endswith("_archive") else "active"
+        return request(f"/api/admin/users/{login}", method="PATCH", body={"status": status})
     if name == "lenin_owner_users_bootstrap":
         return bootstrap(args)
     raise ValueError(f"Неизвестный инструмент: {name}")
@@ -603,7 +824,7 @@ def call(name: str, args: dict) -> dict:
 
 def require_confirmation(args: dict) -> None:
     if not args.get("confirmed"):
-        raise ValueError("Операция меняет доступы: передайте confirmed=true после подтверждения владельца.")
+        raise ValueError("Операция меняет общие данные: передайте confirmed=true после подтверждения владельца.")
 
 
 def required_reason(args: dict) -> str:
@@ -611,6 +832,13 @@ def required_reason(args: dict) -> str:
     if not reason:
         raise ValueError("Для чтения приватных данных укажите краткую причину в reason.")
     return reason[:240]
+
+
+def required_operation_id(args: dict) -> str:
+    operation_id = str(args.get("operation_id") or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_-]{8,128}", operation_id):
+        raise ValueError("operation_id должен содержать 8–128 латинских букв, цифр, '_' или '-'.")
+    return operation_id
 
 
 def segment(value: object, name: str) -> str:
@@ -682,6 +910,7 @@ def compact_company(company: dict) -> dict:
         "company_id": company.get("id"),
         "name": company.get("name"),
         "description": company.get("description") or "",
+        "icon": company.get("icon") or "",
         "status": company.get("status"),
         "member_count": company.get("memberCount", 0),
         "project_count": company.get("projectCount", 0),
@@ -693,6 +922,7 @@ def compact_project(project: dict) -> dict:
         "project_id": project.get("id"),
         "name": project.get("name"),
         "description": project.get("description") or "",
+        "icon": project.get("icon") or "",
         "status": project.get("status"),
         "company_id": project.get("companyId") or "",
         "company_name": project.get("companyName") or "",
@@ -704,6 +934,7 @@ def compact_project(project: dict) -> dict:
         "member_count": project.get("memberCount", 0),
         "publication_status": project.get("publicationStatus") or "",
         "public_url": project.get("publicUrl") or "",
+        "telegram": project.get("telegram") or {},
     }
 
 
@@ -891,7 +1122,7 @@ def main() -> None:
                 result = {
                     "protocolVersion": "2024-11-05",
                     "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "lenin-owner", "version": "0.6.1"},
+                    "serverInfo": {"name": "lenin-owner", "version": "0.7.0"},
                 }
             elif method == "notifications/initialized":
                 continue

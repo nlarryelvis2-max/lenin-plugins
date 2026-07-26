@@ -3,7 +3,7 @@
   "owner": { "name": "lenin-ecosystem" },
   "metadata": {
     "description": "Публичный Lenin Client: личное ядро и безопасная синхронизация с приватной платформой",
-    "version": "1.7.0"
+    "version": "1.8.0"
   },
   "plugins": [
     {
@@ -43,7 +43,7 @@
     {
       "name": "lenin-owner",
       "displayName": "Lenin Owner MCP",
-      "version": "0.6.1",
+      "version": "0.7.0",
       "source": "./owner",
       "strict": true,
       "description": "Отдельный административный MCP только для глобальных владельцев Ленина",
