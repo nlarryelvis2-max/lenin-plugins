@@ -296,7 +296,7 @@ TOOLS = [
     },
     {
         "name": "lenin_owner_project_create",
-        "description": "Create an independent root or child project and optionally allocate one active user as the person responsible for its result.",
+        "description": "Create an independent root or child project. It starts without a result owner unless result_owner_login is explicitly provided.",
         "inputSchema": {
             "type": "object",
             "required": ["name", "confirmed"],
@@ -308,7 +308,10 @@ TOOLS = [
                 "parent_project_id": {"type": "string", "description": "Parent project id. Omit for a root project."},
                 "inherit_members": {"type": "boolean", "default": True},
                 "inherit_materials": {"type": "boolean", "default": True},
-                "result_owner_login": {"type": "string"},
+                "result_owner_login": {
+                    "type": "string",
+                    "description": "Optional active participant login. Omit to leave result responsibility unassigned.",
+                },
                 "result_owner_role": {"type": "string", "enum": ["contributor", "project-owner"]},
                 "confirmed": {"type": "boolean"},
             },
