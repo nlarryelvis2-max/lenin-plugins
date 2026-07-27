@@ -28,6 +28,7 @@ class OwnerMcpTest(unittest.TestCase):
             "lenin_owner_company_list",
             "lenin_owner_company_inspect",
             "lenin_owner_company_create",
+            "lenin_owner_company_project_create",
             "lenin_owner_company_update",
             "lenin_owner_company_member_set",
             "lenin_owner_company_member_remove",
@@ -437,6 +438,75 @@ class OwnerMcpTest(unittest.TestCase):
             "/api/admin/companies/labrador/invites",
             "POST",
             {"role": "company-member", "ttlMs": 900_000},
+        ))
+
+    def test_company_project_create_uses_returned_company_id(self):
+        calls = []
+
+        def fake_request(path, *, method="GET", body=None, token=""):
+            calls.append((path, method, body))
+            if path == "/api/admin/companies":
+                return {"company": {"id": "company-generated", "name": "Лабрадор"}}
+            if path == "/api/admin/projects":
+                return {"project": {"id": "p-generated", "companyId": body["companyId"]}}
+            return {"ok": True}
+
+        with patch.object(owner_mcp, "request", fake_request):
+            result = owner_mcp.call("lenin_owner_company_project_create", {
+                "company_name": "Лабрадор",
+                "company_description": "Команда и проекты.",
+                "owner_login": "felix",
+                "project_name": "Новый сайт",
+                "project_description": "Рабочий проект.",
+                "confirmed": True,
+            })
+
+        self.assertEqual(calls, [
+            (
+                "/api/admin/companies",
+                "POST",
+                {
+                    "name": "Лабрадор",
+                    "description": "Команда и проекты.",
+                    "ownerUserId": "felix",
+                },
+            ),
+            (
+                "/api/admin/projects",
+                "POST",
+                {
+                    "name": "Новый сайт",
+                    "description": "Рабочий проект.",
+                    "companyId": "company-generated",
+                },
+            ),
+        ])
+        self.assertEqual(result["project"]["companyId"], "company-generated")
+
+    def test_company_project_create_archives_empty_company_on_project_failure(self):
+        calls = []
+
+        def fake_request(path, *, method="GET", body=None, token=""):
+            calls.append((path, method, body))
+            if path == "/api/admin/companies":
+                return {"company": {"id": "company-generated", "name": "Лабрадор"}}
+            if path == "/api/admin/projects":
+                raise ValueError("project rejected")
+            return {"company": {"id": "company-generated", "status": "archived"}}
+
+        with patch.object(owner_mcp, "request", fake_request):
+            with self.assertRaisesRegex(ValueError, "компания archived"):
+                owner_mcp.call("lenin_owner_company_project_create", {
+                    "company_name": "Лабрадор",
+                    "owner_login": "felix",
+                    "project_name": "Новый сайт",
+                    "confirmed": True,
+                })
+
+        self.assertEqual(calls[-1], (
+            "/api/admin/companies/company-generated",
+            "PATCH",
+            {"status": "archived"},
         ))
 
     def test_owner_history_and_team_chat_are_audited_and_scoped(self):

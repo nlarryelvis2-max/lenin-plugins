@@ -14,7 +14,7 @@ from pathlib import Path
 BASE = Path.home() / ".claude" / "lenin_owner"
 CONFIG = BASE / "config.json"
 PROD_BASE = "https://lenin.nglain.com"
-PLUGIN_VERSION = "0.8.0"
+PLUGIN_VERSION = "0.9.0"
 RETRYABLE_HTTP = {429, 502, 503, 504}
 
 

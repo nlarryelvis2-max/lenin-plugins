@@ -50,7 +50,7 @@ class OwnerClientRetryTest(unittest.TestCase):
         self.assertEqual(urlopen.call_count, 3)
         self.assertEqual(sleep.call_count, 2)
         request = urlopen.call_args.args[0]
-        self.assertEqual(request.headers["X-lenin-owner-plugin-version"], "0.8.0")
+        self.assertEqual(request.headers["X-lenin-owner-plugin-version"], "0.9.0")
 
     def test_plain_mutation_is_not_retried(self):
         with (

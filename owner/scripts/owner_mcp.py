@@ -219,7 +219,7 @@ TOOLS = [
     },
     {
         "name": "lenin_owner_company_create",
-        "description": "Create a company and optionally appoint one active non-guest user as company owner.",
+        "description": "Create a company. The platform appoints the connected owner by default, or owner_login when provided. Use lenin_owner_company_project_create when the request also includes a first project.",
         "inputSchema": {
             "type": "object",
             "required": ["name", "confirmed"],
@@ -228,6 +228,25 @@ TOOLS = [
                 "description": {"type": "string"},
                 "icon": {"type": "string", "description": "Optional short emoji or icon, up to 8 Unicode characters."},
                 "owner_login": {"type": "string"},
+                "confirmed": {"type": "boolean"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_company_project_create",
+        "description": "Preferred single workflow for a new company with its first project: appoint an active non-guest company owner, create the company, then attach the project using the exact company id returned by the platform.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["company_name", "owner_login", "project_name", "confirmed"],
+            "properties": {
+                "company_name": {"type": "string"},
+                "company_description": {"type": "string"},
+                "company_icon": {"type": "string", "description": "Optional short emoji or icon, up to 8 Unicode characters."},
+                "owner_login": {"type": "string"},
+                "project_name": {"type": "string"},
+                "project_description": {"type": "string"},
+                "project_icon": {"type": "string", "description": "Optional short emoji or icon, up to 8 Unicode characters."},
                 "confirmed": {"type": "boolean"},
             },
             "additionalProperties": False,
@@ -737,6 +756,39 @@ def call(name: str, args: dict) -> dict:
         if str(args.get("owner_login") or "").strip():
             body["ownerUserId"] = required_text(args.get("owner_login"), "owner_login")
         return request("/api/admin/companies", method="POST", body=body)
+    if name == "lenin_owner_company_project_create":
+        company_body = {
+            "name": required_text(args.get("company_name"), "company_name"),
+            "description": str(args.get("company_description") or "").strip(),
+            "ownerUserId": required_text(args.get("owner_login"), "owner_login"),
+        }
+        if "company_icon" in args:
+            company_body["icon"] = str(args.get("company_icon") or "").strip()
+        created = request("/api/admin/companies", method="POST", body=company_body)
+        company = created.get("company") or {}
+        company_id = required_text(company.get("id"), "returned company id")
+        project_body = {
+            "name": required_text(args.get("project_name"), "project_name"),
+            "description": str(args.get("project_description") or "").strip(),
+            "companyId": company_id,
+        }
+        if "project_icon" in args:
+            project_body["icon"] = str(args.get("project_icon") or "").strip()
+        try:
+            project = request("/api/admin/projects", method="POST", body=project_body)
+        except ValueError as error:
+            rollback = "failed"
+            try:
+                request(f"/api/admin/companies/{segment(company_id, 'company_id')}", method="PATCH", body={
+                    "status": "archived",
+                })
+                rollback = "archived"
+            except ValueError:
+                pass
+            raise ValueError(
+                f"Проект не создан; созданная компания {rollback}. Проверьте каталог компаний перед повтором: {error}"
+            ) from error
+        return {"company": company, "project": project.get("project") or project}
     if name == "lenin_owner_company_update":
         company = segment(args.get("company_id"), "company_id")
         body = {key: args[key] for key in ("name", "description", "icon", "status") if key in args}
@@ -1166,7 +1218,7 @@ def main() -> None:
                 result = {
                     "protocolVersion": "2024-11-05",
                     "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "lenin-owner", "version": "0.8.0"},
+                    "serverInfo": {"name": "lenin-owner", "version": "0.9.0"},
                 }
             elif method == "notifications/initialized":
                 continue
