@@ -50,7 +50,7 @@ class OwnerClientRetryTest(unittest.TestCase):
         self.assertEqual(urlopen.call_count, 3)
         self.assertEqual(sleep.call_count, 2)
         request = urlopen.call_args.args[0]
-        self.assertEqual(request.headers["X-lenin-owner-plugin-version"], "0.7.0")
+        self.assertEqual(request.headers["X-lenin-owner-plugin-version"], "0.8.0")
 
     def test_plain_mutation_is_not_retried(self):
         with (
@@ -94,6 +94,32 @@ class OwnerClientRetryTest(unittest.TestCase):
             )
 
         self.assertEqual(result["recovered"], True)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0][0], calls[1][0])
+        self.assertEqual(calls[0][1], 45)
+
+    def test_confirmed_message_send_retries_with_the_same_one_time_token(self):
+        calls = []
+
+        def urlopen(request, timeout):
+            calls.append((request.data, timeout))
+            if len(calls) == 1:
+                raise urllib.error.URLError("response lost")
+            return Response({"ok": True, "deduplicated": True})
+
+        body = {"confirmationToken": "lom_abcdefghijklmnopqrstuvwxyzABCDEFG"}
+        with (
+            patch.object(owner_client, "load_config", side_effect=self.config),
+            patch.object(owner_client.time, "sleep"),
+            patch.object(owner_client.urllib.request, "urlopen", side_effect=urlopen),
+        ):
+            result = owner_client.request(
+                "/api/product/owner/messages/send",
+                method="POST",
+                body=body,
+            )
+
+        self.assertEqual(result["deduplicated"], True)
         self.assertEqual(len(calls), 2)
         self.assertEqual(calls[0][0], calls[1][0])
         self.assertEqual(calls[0][1], 45)

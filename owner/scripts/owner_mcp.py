@@ -527,15 +527,44 @@ TOOLS = [
         },
     },
     {
-        "name": "lenin_owner_team_chat_post",
-        "description": "Publish a plain-text message to one project's team chat as the connected global owner.",
+        "name": "lenin_owner_message_prepare",
+        "description": "Prepare, but do not send, one exact project team-chat message. Select owner or Lenin as the visible sender and the whole team or one participant as target. Always show the returned complete preview to the owner: sender, recipient, project, team-visible delivery and exact text.",
         "inputSchema": {
             "type": "object",
-            "required": ["project_id", "text", "confirmed"],
+            "required": ["project_id", "sender", "target", "text"],
             "properties": {
                 "project_id": {"type": "string"},
-                "text": {"type": "string"},
-                "confirmed": {"type": "boolean"},
+                "sender": {
+                    "type": "string",
+                    "enum": ["owner", "lenin"],
+                    "description": "Visible author. owner = connected owner; lenin = Lenin label with owner-authored exact text.",
+                },
+                "target": {
+                    "type": "string",
+                    "enum": ["team", "participant"],
+                    "description": "participant is an addressed @mention in the selected project team chat, not a private DM.",
+                },
+                "recipient_login": {
+                    "type": "string",
+                    "description": "Required only for target=participant; must be an active participant of this project.",
+                },
+                "text": {"type": "string", "minLength": 1, "maxLength": 4000},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "lenin_owner_message_send",
+        "description": "Send exactly one previously prepared message using only its one-time confirmation token. Call this only after the owner explicitly confirms the complete preview; never infer confirmation or accept changed sender, target, project or text.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["confirmation_token"],
+            "properties": {
+                "confirmation_token": {
+                    "type": "string",
+                    "pattern": "^lom_[A-Za-z0-9_-]{32,128}$",
+                    "description": "Short-lived token returned by lenin_owner_message_prepare.",
+                },
             },
             "additionalProperties": False,
         },
@@ -675,6 +704,24 @@ def call(name: str, args: dict) -> dict:
         if str(args.get("project_id") or "").strip():
             query["projectId"] = required_text(args.get("project_id"), "project_id")
         return request(f"/api/product/owner/team-chat?{urlencode(query)}")
+    if name == "lenin_owner_message_prepare":
+        target = required_text(args.get("target"), "target")
+        recipient = str(args.get("recipient_login") or "").strip()
+        if target == "participant" and not recipient:
+            raise ValueError("Для target=participant укажите recipient_login.")
+        if target == "team" and recipient:
+            raise ValueError("Для target=team не передавайте recipient_login.")
+        return request("/api/product/owner/messages/preview", method="POST", body={
+            "projectId": required_text(args.get("project_id"), "project_id"),
+            "sender": required_text(args.get("sender"), "sender"),
+            "target": target,
+            "recipientUserId": recipient,
+            "text": required_text(args.get("text"), "text"),
+        })
+    if name == "lenin_owner_message_send":
+        return request("/api/product/owner/messages/send", method="POST", body={
+            "confirmationToken": required_text(args.get("confirmation_token"), "confirmation_token"),
+        })
     require_confirmation(args)
     if name == "lenin_owner_user_create":
         return request("/api/admin/users", method="POST", body={
@@ -806,12 +853,6 @@ def call(name: str, args: dict) -> dict:
             "projectId": required_text(args.get("project_id"), "project_id"),
             "text": args.get("text"),
             "expectedSha256": args.get("expected_sha256"),
-        })
-    if name == "lenin_owner_team_chat_post":
-        return request("/api/product/owner/team-chat", method="POST", body={
-            "projectId": required_text(args.get("project_id"), "project_id"),
-            "text": required_text(args.get("text"), "text"),
-            "confirmed": True,
         })
     if name == "lenin_owner_user_status_set":
         login = segment(args.get("login"), "login")
@@ -1125,7 +1166,7 @@ def main() -> None:
                 result = {
                     "protocolVersion": "2024-11-05",
                     "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "lenin-owner", "version": "0.7.0"},
+                    "serverInfo": {"name": "lenin-owner", "version": "0.8.0"},
                 }
             elif method == "notifications/initialized":
                 continue

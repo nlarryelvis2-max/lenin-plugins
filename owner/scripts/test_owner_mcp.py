@@ -49,10 +49,18 @@ class OwnerMcpTest(unittest.TestCase):
             "lenin_owner_project_context_update",
             "lenin_owner_user_history_read",
             "lenin_owner_team_chat_read",
-            "lenin_owner_team_chat_post",
+            "lenin_owner_message_prepare",
+            "lenin_owner_message_send",
             "lenin_owner_user_archive",
             "lenin_owner_user_restore",
         }.issubset(names))
+        self.assertNotIn("lenin_owner_team_chat_post", names)
+        with self.assertRaisesRegex(ValueError, "Неизвестный инструмент"):
+            owner_mcp.call("lenin_owner_team_chat_post", {
+                "project_id": "p-one",
+                "text": "Обход preview",
+                "confirmed": True,
+            })
         create = next(tool for tool in owner_mcp.TOOLS if tool["name"] == "lenin_owner_project_create")
         self.assertTrue({
             "company_id",
@@ -449,15 +457,22 @@ class OwnerMcpTest(unittest.TestCase):
                 "project_id": "p-one",
                 "after_sequence": 42,
             })
-            with self.assertRaisesRegex(ValueError, "confirmed=true"):
-                owner_mcp.call("lenin_owner_team_chat_post", {
+            with self.assertRaisesRegex(ValueError, "recipient_login"):
+                owner_mcp.call("lenin_owner_message_prepare", {
                     "project_id": "p-one",
+                    "sender": "owner",
+                    "target": "participant",
                     "text": "Принял",
                 })
-            owner_mcp.call("lenin_owner_team_chat_post", {
+            owner_mcp.call("lenin_owner_message_prepare", {
                 "project_id": "p-one",
+                "sender": "lenin",
+                "target": "participant",
+                "recipient_login": "sasha",
                 "text": "Принял",
-                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_message_send", {
+                "confirmation_token": "lom_abcdefghijklmnopqrstuvwxyzABCDEFG",
             })
         self.assertIn("/api/admin/users/sasha/history?", calls[0][0])
         self.assertIn("limit=200", calls[0][0])
@@ -465,9 +480,20 @@ class OwnerMcpTest(unittest.TestCase):
         self.assertIn("/api/product/owner/team-chat?", calls[1][0])
         self.assertIn("projectId=p-one", calls[1][0])
         self.assertEqual(calls[2], (
-            "/api/product/owner/team-chat",
+            "/api/product/owner/messages/preview",
             "POST",
-            {"projectId": "p-one", "text": "Принял", "confirmed": True},
+            {
+                "projectId": "p-one",
+                "sender": "lenin",
+                "target": "participant",
+                "recipientUserId": "sasha",
+                "text": "Принял",
+            },
+        ))
+        self.assertEqual(calls[3], (
+            "/api/product/owner/messages/send",
+            "POST",
+            {"confirmationToken": "lom_abcdefghijklmnopqrstuvwxyzABCDEFG"},
         ))
 
     def test_bootstrap_skips_existing_and_writes_private_credentials_file(self):
