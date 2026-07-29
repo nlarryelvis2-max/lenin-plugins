@@ -36,6 +36,20 @@ TOOLS = [
         },
     },
     {
+        "name": "lenin_owner_activity_digest",
+        "description": "Use for 'today', 'recently', 'what moved' and 'who wrote what': read recent team messages across projects plus current project events and attention, grouped by project and author. The reason is audited.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["reason"],
+            "properties": {
+                "reason": {"type": "string", "description": "Short operational reason for reviewing shared team activity."},
+                "since_hours": {"type": "integer", "minimum": 1, "maximum": 168, "default": 24},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 200, "default": 200},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "lenin_owner_company_list",
         "description": "Return a compact filterable company directory with member and project counts.",
         "inputSchema": {
@@ -665,6 +679,13 @@ def call(name: str, args: dict) -> dict:
             "limit": bounded_integer(args.get("limit"), 200, 1, 200),
         })
         return request(f"/api/product/owner/portfolio-digest?{query}")
+    if name == "lenin_owner_activity_digest":
+        query = urlencode({
+            "reason": required_reason(args),
+            "sinceHours": bounded_integer(args.get("since_hours"), 24, 1, 168),
+            "limit": bounded_integer(args.get("limit"), 200, 1, 200),
+        })
+        return request(f"/api/product/owner/activity-digest?{query}")
     if name == "lenin_owner_company_list":
         return company_list(args)
     if name == "lenin_owner_company_inspect":
