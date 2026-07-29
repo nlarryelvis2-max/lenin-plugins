@@ -9,9 +9,11 @@
   },
   "files": [
     "lenin-core/platform-core.js",
-    "lenin-core/skills/*/SKILL.md"
+    "lenin-core/skills/*/SKILL.md",
+    "owner/scripts/owner_client.py",
+    "owner/scripts/owner_mcp.py"
   ],
   "scripts": {
-    "test": "node --test test/*.test.js && python3 -m unittest discover -s client/scripts -p 'test_*.py' -v && python3 -m unittest discover -s lenin-uplink/scripts -p 'test_*.py' -v"
+    "test": "node --test test/*.test.js && python3 -m unittest discover -s client/scripts -p 'test_*.py' -v && python3 -m unittest discover -s lenin-uplink/scripts -p 'test_*.py' -v && python3 -m unittest discover -s owner/scripts -p 'test_*.py' -v"
   }
 }

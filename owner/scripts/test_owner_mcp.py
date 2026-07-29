@@ -1,0 +1,598 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import stat
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import owner_mcp
+
+
+class OwnerMcpTest(unittest.TestCase):
+    def test_tool_list_includes_bounded_owner_operations(self):
+        names = {tool["name"] for tool in owner_mcp.TOOLS}
+        self.assertTrue({
+            "lenin_owner_capabilities",
+            "lenin_owner_portfolio_digest",
+            "lenin_owner_user_list",
+            "lenin_owner_user_inspect",
+            "lenin_owner_user_context_read",
+            "lenin_owner_user_conversation_read",
+            "lenin_owner_user_uplink_summary",
+            "lenin_owner_user_password_reset",
+            "lenin_owner_user_status_set",
+            "lenin_owner_company_list",
+            "lenin_owner_company_inspect",
+            "lenin_owner_company_create",
+            "lenin_owner_company_project_create",
+            "lenin_owner_company_update",
+            "lenin_owner_company_member_set",
+            "lenin_owner_company_member_remove",
+            "lenin_owner_company_invite_create",
+            "lenin_owner_project_list",
+            "lenin_owner_project_inspect",
+            "lenin_owner_project_digest",
+            "lenin_owner_project_documents_list",
+            "lenin_owner_project_document_read",
+            "lenin_owner_project_create",
+            "lenin_owner_project_archive",
+            "lenin_owner_project_restore",
+            "lenin_owner_project_invite_create",
+            "lenin_owner_project_guest_link_create",
+            "lenin_owner_project_delegate",
+            "lenin_owner_project_result_owner_set",
+            "lenin_owner_user_context_update",
+            "lenin_owner_project_context_read",
+            "lenin_owner_project_context_update",
+            "lenin_owner_user_history_read",
+            "lenin_owner_team_chat_read",
+            "lenin_owner_message_prepare",
+            "lenin_owner_message_send",
+            "lenin_owner_user_archive",
+            "lenin_owner_user_restore",
+        }.issubset(names))
+        self.assertNotIn("lenin_owner_team_chat_post", names)
+        with self.assertRaisesRegex(ValueError, "Неизвестный инструмент"):
+            owner_mcp.call("lenin_owner_team_chat_post", {
+                "project_id": "p-one",
+                "text": "Обход preview",
+                "confirmed": True,
+            })
+        create = next(tool for tool in owner_mcp.TOOLS if tool["name"] == "lenin_owner_project_create")
+        self.assertTrue({
+            "company_id",
+            "parent_project_id",
+            "inherit_members",
+            "inherit_materials",
+        }.issubset(create["inputSchema"]["properties"]))
+        self.assertEqual(len(names), len(owner_mcp.TOOLS))
+
+    def test_control_plane_reads_are_bounded_and_scoped(self):
+        calls = []
+
+        def fake_request(path, *, method="GET", body=None, token=""):
+            calls.append((path, method, body))
+            return {"ok": True}
+
+        with patch.object(owner_mcp, "request", fake_request):
+            owner_mcp.call("lenin_owner_capabilities", {})
+            owner_mcp.call("lenin_owner_portfolio_digest", {
+                "after_sequence": -50,
+                "include_archived": True,
+                "limit": 500,
+            })
+            owner_mcp.call("lenin_owner_project_digest", {
+                "project_id": "project one",
+                "after_sequence": 17,
+            })
+            owner_mcp.call("lenin_owner_project_documents_list", {"project_id": "project one"})
+            owner_mcp.call("lenin_owner_project_document_read", {
+                "project_id": "project one",
+                "document": "roadmap",
+            })
+
+        self.assertEqual(calls[0][0], "/api/product/owner/capabilities")
+        self.assertIn("/api/product/owner/portfolio-digest?", calls[1][0])
+        self.assertIn("afterSequence=0", calls[1][0])
+        self.assertIn("includeArchived=true", calls[1][0])
+        self.assertIn("limit=200", calls[1][0])
+        self.assertIn("/api/product/owner/projects/project%20one/digest?", calls[2][0])
+        self.assertIn("afterSequence=17", calls[2][0])
+        self.assertEqual(calls[3][0], "/api/product/owner/projects/project%20one/documents")
+        self.assertEqual(calls[4][0], "/api/product/owner/projects/project%20one/documents/roadmap")
+
+    def test_project_delegate_and_lifecycle_tools_preserve_idempotency_and_confirmation(self):
+        calls = []
+
+        def fake_request(path, *, method="GET", body=None, token=""):
+            calls.append((path, method, body))
+            return {"ok": True}
+
+        with patch.object(owner_mcp, "request", fake_request):
+            with self.assertRaisesRegex(ValueError, "confirmed=true"):
+                owner_mcp.call("lenin_owner_project_delegate", {
+                    "project_id": "luna",
+                    "instruction": "Собери итог",
+                    "operation_id": "delegate-123",
+                })
+            with self.assertRaisesRegex(ValueError, "operation_id"):
+                owner_mcp.call("lenin_owner_project_delegate", {
+                    "project_id": "luna",
+                    "instruction": "Собери итог",
+                    "operation_id": "bad id",
+                    "confirmed": True,
+                })
+            owner_mcp.call("lenin_owner_project_delegate", {
+                "project_id": "luna",
+                "instruction": "Собери итог",
+                "operation_id": "delegate-123",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_project_archive", {
+                "project_id": "luna",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_project_restore", {
+                "project_id": "luna",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_project_invite_create", {
+                "project_id": "luna",
+                "role": "contributor",
+                "user_role": "participant",
+                "ttl_ms": 900_000,
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_project_guest_link_create", {
+                "project_id": "luna",
+                "name": "Внешний эксперт",
+                "job_title": "Дизайнер",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_user_archive", {
+                "login": "alisa",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_user_restore", {
+                "login": "alisa",
+                "confirmed": True,
+            })
+
+        self.assertEqual(calls[0], (
+            "/api/product/owner/projects/luna/delegate",
+            "POST",
+            {"instruction": "Собери итог", "operationId": "delegate-123", "confirmed": True},
+        ))
+        self.assertEqual(calls[1][2], {"status": "archived"})
+        self.assertEqual(calls[2][2], {"status": "active"})
+        self.assertEqual(calls[3], (
+            "/api/admin/projects/luna/invites",
+            "POST",
+            {"role": "contributor", "userRole": "participant", "ttlMs": 900_000},
+        ))
+        self.assertEqual(calls[4], (
+            "/api/admin/projects/luna/guest-links",
+            "POST",
+            {"name": "Внешний эксперт", "jobTitle": "Дизайнер"},
+        ))
+        self.assertEqual(calls[5][2], {"status": "disabled"})
+        self.assertEqual(calls[6][2], {"status": "active"})
+
+    def test_user_list_filters_and_resolves_project_names(self):
+        overview = {
+            "projects": [{"id": "p-one", "name": "Project One"}],
+            "users": [
+                {
+                    "id": "fil",
+                    "name": "Фил",
+                    "role": "owner",
+                    "status": "active",
+                    "passwordConfigured": True,
+                    "allProjects": True,
+                    "effectiveProjectCount": 1,
+                    "projects": [],
+                    "uplink": {"state": "connected", "clientCount": 1, "lastSyncAt": "2026-07-23T12:00:00Z"},
+                },
+                {
+                    "id": "sasha",
+                    "name": "Саша",
+                    "role": "participant",
+                    "status": "active",
+                    "passwordConfigured": False,
+                    "allProjects": False,
+                    "effectiveProjectCount": 1,
+                    "projects": [{"projectId": "p-one", "role": "contributor"}],
+                    "uplink": {"state": "not_connected"},
+                },
+            ],
+        }
+        with patch.object(owner_mcp, "request", return_value=overview):
+            result = owner_mcp.call("lenin_owner_user_list", {"project_id": "p-one", "query": "саша"})
+            inspected = owner_mcp.call("lenin_owner_user_inspect", {"login": "fil"})
+        self.assertEqual(result["count"], 1)
+        self.assertEqual(result["users"][0]["access"]["grants"][0]["project_name"], "Project One")
+        self.assertFalse(result["users"][0]["password_configured"])
+        self.assertTrue(inspected["access"]["all_projects"])
+        self.assertEqual(inspected["uplink"]["state"], "connected")
+
+    def test_sensitive_reads_require_reason_and_bound_pagination(self):
+        calls = []
+
+        def fake_request(path, *, method="GET", body=None, token=""):
+            calls.append((path, method, body))
+            return {"ok": True}
+
+        with patch.object(owner_mcp, "request", fake_request):
+            with self.assertRaisesRegex(ValueError, "reason"):
+                owner_mcp.call("lenin_owner_user_context_read", {"login": "a user"})
+            owner_mcp.call("lenin_owner_user_context_read", {"login": "a user", "reason": "support review"})
+            owner_mcp.call("lenin_owner_user_conversation_read", {
+                "login": "a user",
+                "project_id": "project/one",
+                "reason": "trace issue",
+                "limit": 500,
+                "offset": -20,
+            })
+        self.assertEqual(calls[0][0], "/api/admin/users/a%20user/memory?reason=support+review")
+        self.assertIn("/api/admin/users/a%20user/conversations?", calls[1][0])
+        self.assertIn("projectId=project%2Fone", calls[1][0])
+        self.assertIn("limit=100", calls[1][0])
+        self.assertIn("offset=0", calls[1][0])
+
+    def test_company_and_project_directories_are_explicit_and_scoped(self):
+        overview = {
+            "companies": [{
+                "id": "labrador",
+                "name": "Лабрадор",
+                "description": "Компания",
+                "status": "active",
+                "memberCount": 1,
+                "projectCount": 1,
+            }],
+            "projects": [{
+                "id": "freec",
+                "name": "FreeC",
+                "description": "Проект",
+                "status": "active",
+                "companyId": "labrador",
+                "companyName": "Лабрадор",
+                "resultOwnerUserId": "felix",
+                "resultOwnerName": "Феликс",
+                "memberCount": 1,
+            }],
+            "users": [{
+                "id": "felix",
+                "name": "Феликс",
+                "role": "participant",
+                "status": "active",
+                "companies": [{"companyId": "labrador", "role": "company-owner"}],
+                "effectiveProjects": [{"projectId": "freec", "role": "project-owner", "accessSource": "membership"}],
+            }],
+        }
+        with patch.object(owner_mcp, "request", return_value=overview):
+            companies = owner_mcp.call("lenin_owner_company_list", {"query": "лаб"})
+            company = owner_mcp.call("lenin_owner_company_inspect", {"company_id": "labrador"})
+            projects = owner_mcp.call("lenin_owner_project_list", {"company_id": "labrador"})
+            project = owner_mcp.call("lenin_owner_project_inspect", {"project_id": "freec"})
+        self.assertEqual(companies["companies"][0]["company_id"], "labrador")
+        self.assertEqual(company["members"][0]["role"], "company-owner")
+        self.assertEqual(company["projects"][0]["project_id"], "freec")
+        self.assertEqual(projects["projects"][0]["company_name"], "Лабрадор")
+        self.assertEqual(project["participants"][0]["login"], "felix")
+
+    def test_uplink_summary_falls_back_to_memory_without_private_content(self):
+        calls = []
+
+        def fake_request(path, *, method="GET", body=None, token=""):
+            calls.append(path)
+            if "/uplink?" in path:
+                raise ValueError("Administrator endpoint not found")
+            return {
+                "user": {"id": "fil"},
+                "context": {"text": "private"},
+                "inventory": [{"path": "personal/context.md"}],
+                "uplink": {"count": 2, "machines": [{"machineId": "Mac"}]},
+            }
+
+        with patch.object(owner_mcp, "request", fake_request):
+            result = owner_mcp.call("lenin_owner_user_uplink_summary", {
+                "login": "fil",
+                "reason": "connection review",
+            })
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(result["uplink"]["count"], 2)
+        self.assertNotIn("context", result)
+        self.assertNotIn("inventory", result)
+
+    def test_mutations_require_confirmation_and_use_scoped_routes(self):
+        calls = []
+
+        def fake_request(path, *, method="GET", body=None, token=""):
+            calls.append((path, method, body))
+            return {"temporaryPassword": "temporary"}
+
+        with patch.object(owner_mcp, "request", fake_request):
+            with self.assertRaisesRegex(ValueError, "confirmed=true"):
+                owner_mcp.call("lenin_owner_user_password_reset", {"login": "fil"})
+            reset = owner_mcp.call("lenin_owner_user_password_reset", {"login": "fil", "confirmed": True})
+            owner_mcp.call("lenin_owner_user_status_set", {
+                "login": "sasha",
+                "status": "disabled",
+                "confirmed": True,
+            })
+        self.assertEqual(reset["temporaryPassword"], "temporary")
+        self.assertEqual(calls[0], ("/api/admin/users/fil/password", "POST", {}))
+        self.assertEqual(calls[1], ("/api/admin/users/sasha", "PATCH", {"status": "disabled"}))
+
+    def test_project_lifecycle_and_context_tools_use_scoped_routes(self):
+        calls = []
+
+        def fake_request(path, *, method="GET", body=None, token=""):
+            calls.append((path, method, body))
+            return {"ok": True}
+
+        with patch.object(owner_mcp, "request", fake_request):
+            owner_mcp.call("lenin_owner_project_create", {
+                "name": "Новый проект",
+                "icon": "🌙",
+                "company_id": "labrador",
+                "parent_project_id": "p-parent",
+                "inherit_members": True,
+                "inherit_materials": False,
+                "result_owner_login": "sasha",
+                "result_owner_role": "project-owner",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_project_result_owner_set", {
+                "project_id": "p-one",
+                "login": "fil",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_user_context_update", {
+                "login": "sasha",
+                "text": "# Саша",
+                "expected_sha256": "abc",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_project_context_read", {"project_id": "p-one"})
+            owner_mcp.call("lenin_owner_project_context_update", {
+                "project_id": "p-one",
+                "text": "# Проект",
+                "expected_sha256": "def",
+                "confirmed": True,
+            })
+        self.assertEqual(calls[0][0:2], ("/api/admin/projects", "POST"))
+        self.assertEqual(calls[0][2]["resultOwnerUserId"], "sasha")
+        self.assertEqual(calls[0][2]["icon"], "🌙")
+        self.assertEqual(calls[0][2]["companyId"], "labrador")
+        self.assertEqual(calls[0][2]["parentProjectId"], "p-parent")
+        self.assertEqual(calls[0][2]["inheritMembers"], True)
+        self.assertEqual(calls[0][2]["inheritMaterials"], False)
+        self.assertEqual(calls[1], (
+            "/api/admin/projects/p-one",
+            "PATCH",
+            {"resultOwnerUserId": "fil"},
+        ))
+        self.assertEqual(calls[2][0:2], ("/api/admin/users/sasha/memory/context", "PUT"))
+        self.assertEqual(calls[3][0], "/api/project-context?projectId=p-one")
+        self.assertEqual(calls[4][0:2], ("/api/project-context", "PUT"))
+
+    def test_company_mutations_require_confirmation_and_use_company_routes(self):
+        calls = []
+        overview = {
+            "users": [{
+                "id": "felix",
+                "companies": [{"companyId": "labrador", "role": "company-member"}],
+            }],
+        }
+
+        def fake_request(path, *, method="GET", body=None, token=""):
+            calls.append((path, method, body))
+            return overview if path == "/api/admin/overview" else {"ok": True}
+
+        with patch.object(owner_mcp, "request", fake_request):
+            with self.assertRaisesRegex(ValueError, "confirmed=true"):
+                owner_mcp.call("lenin_owner_company_create", {"name": "Лабрадор"})
+            owner_mcp.call("lenin_owner_company_create", {
+                "name": "Лабрадор",
+                "owner_login": "felix",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_company_member_set", {
+                "company_id": "labrador",
+                "login": "felix",
+                "role": "company-owner",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_company_member_remove", {
+                "company_id": "labrador",
+                "login": "felix",
+                "confirmed": True,
+            })
+            owner_mcp.call("lenin_owner_company_invite_create", {
+                "company_id": "labrador",
+                "role": "company-member",
+                "ttl_ms": 900_000,
+                "confirmed": True,
+            })
+        self.assertEqual(calls[0], (
+            "/api/admin/companies",
+            "POST",
+            {"name": "Лабрадор", "description": "", "ownerUserId": "felix"},
+        ))
+        self.assertEqual(calls[1][0], "/api/admin/overview")
+        self.assertEqual(calls[2], (
+            "/api/product/owner/company-members",
+            "PATCH",
+            {"companyId": "labrador", "userId": "felix", "role": "company-owner"},
+        ))
+        self.assertEqual(calls[3][0:2], (
+            "/api/product/owner/company-members?companyId=labrador&userId=felix",
+            "DELETE",
+        ))
+        self.assertEqual(calls[4], (
+            "/api/admin/companies/labrador/invites",
+            "POST",
+            {"role": "company-member", "ttlMs": 900_000},
+        ))
+
+    def test_company_project_create_uses_returned_company_id(self):
+        calls = []
+
+        def fake_request(path, *, method="GET", body=None, token=""):
+            calls.append((path, method, body))
+            if path == "/api/admin/companies":
+                return {"company": {"id": "company-generated", "name": "Лабрадор"}}
+            if path == "/api/admin/projects":
+                return {"project": {"id": "p-generated", "companyId": body["companyId"]}}
+            return {"ok": True}
+
+        with patch.object(owner_mcp, "request", fake_request):
+            result = owner_mcp.call("lenin_owner_company_project_create", {
+                "company_name": "Лабрадор",
+                "company_description": "Команда и проекты.",
+                "owner_login": "felix",
+                "project_name": "Новый сайт",
+                "project_description": "Рабочий проект.",
+                "confirmed": True,
+            })
+
+        self.assertEqual(calls, [
+            (
+                "/api/admin/companies",
+                "POST",
+                {
+                    "name": "Лабрадор",
+                    "description": "Команда и проекты.",
+                    "ownerUserId": "felix",
+                },
+            ),
+            (
+                "/api/admin/projects",
+                "POST",
+                {
+                    "name": "Новый сайт",
+                    "description": "Рабочий проект.",
+                    "companyId": "company-generated",
+                },
+            ),
+        ])
+        self.assertEqual(result["project"]["companyId"], "company-generated")
+
+    def test_company_project_create_archives_empty_company_on_project_failure(self):
+        calls = []
+
+        def fake_request(path, *, method="GET", body=None, token=""):
+            calls.append((path, method, body))
+            if path == "/api/admin/companies":
+                return {"company": {"id": "company-generated", "name": "Лабрадор"}}
+            if path == "/api/admin/projects":
+                raise ValueError("project rejected")
+            return {"company": {"id": "company-generated", "status": "archived"}}
+
+        with patch.object(owner_mcp, "request", fake_request):
+            with self.assertRaisesRegex(ValueError, "компания archived"):
+                owner_mcp.call("lenin_owner_company_project_create", {
+                    "company_name": "Лабрадор",
+                    "owner_login": "felix",
+                    "project_name": "Новый сайт",
+                    "confirmed": True,
+                })
+
+        self.assertEqual(calls[-1], (
+            "/api/admin/companies/company-generated",
+            "PATCH",
+            {"status": "archived"},
+        ))
+
+    def test_owner_history_and_team_chat_are_audited_and_scoped(self):
+        calls = []
+
+        def fake_request(path, *, method="GET", body=None, token=""):
+            calls.append((path, method, body))
+            return {"ok": True}
+
+        with patch.object(owner_mcp, "request", fake_request):
+            owner_mcp.call("lenin_owner_user_history_read", {
+                "login": "sasha",
+                "reason": "weekly review",
+                "limit": 500,
+            })
+            owner_mcp.call("lenin_owner_team_chat_read", {
+                "reason": "new messages",
+                "project_id": "p-one",
+                "after_sequence": 42,
+            })
+            with self.assertRaisesRegex(ValueError, "recipient_login"):
+                owner_mcp.call("lenin_owner_message_prepare", {
+                    "project_id": "p-one",
+                    "sender": "owner",
+                    "target": "participant",
+                    "text": "Принял",
+                })
+            owner_mcp.call("lenin_owner_message_prepare", {
+                "project_id": "p-one",
+                "sender": "lenin",
+                "target": "participant",
+                "recipient_login": "sasha",
+                "text": "Принял",
+            })
+            owner_mcp.call("lenin_owner_message_send", {
+                "confirmation_token": "lom_abcdefghijklmnopqrstuvwxyzABCDEFG",
+            })
+        self.assertIn("/api/admin/users/sasha/history?", calls[0][0])
+        self.assertIn("limit=200", calls[0][0])
+        self.assertIn("reason=weekly+review", calls[0][0])
+        self.assertIn("/api/product/owner/team-chat?", calls[1][0])
+        self.assertIn("projectId=p-one", calls[1][0])
+        self.assertEqual(calls[2], (
+            "/api/product/owner/messages/preview",
+            "POST",
+            {
+                "projectId": "p-one",
+                "sender": "lenin",
+                "target": "participant",
+                "recipientUserId": "sasha",
+                "text": "Принял",
+            },
+        ))
+        self.assertEqual(calls[3], (
+            "/api/product/owner/messages/send",
+            "POST",
+            {"confirmationToken": "lom_abcdefghijklmnopqrstuvwxyzABCDEFG"},
+        ))
+
+    def test_bootstrap_skips_existing_and_writes_private_credentials_file(self):
+        calls = []
+
+        def fake_request(path, *, method="GET", body=None, token=""):
+            calls.append((path, method, body))
+            if path == "/api/admin/overview":
+                return {"users": [{"id": "existing"}]}
+            return {"temporaryPassword": f"temporary-for-{body['id']}"}
+
+        with tempfile.TemporaryDirectory() as directory, patch.object(owner_mcp, "request", fake_request):
+            output = Path(directory) / "credentials.tsv"
+            result = owner_mcp.bootstrap({
+                "output_path": str(output),
+                "users": [
+                    {"login": "existing", "name": "Existing"},
+                    {"login": "new-user", "name": "New\tUser"},
+                ],
+            })
+            self.assertEqual(result["created"], 1)
+            self.assertEqual(result["skipped_existing"], ["existing"])
+            self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o600)
+            self.assertEqual(
+                output.read_text(encoding="utf-8"),
+                "login\tname\ttemporary_password\nnew-user\tNew User\ttemporary-for-new-user\n",
+            )
+            self.assertEqual(calls[-1][2]["projectIds"], [])
+
+
+if __name__ == "__main__":
+    unittest.main()
