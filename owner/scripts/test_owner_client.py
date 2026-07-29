@@ -52,6 +52,27 @@ class OwnerClientRetryTest(unittest.TestCase):
         request = urlopen.call_args.args[0]
         self.assertEqual(request.headers["X-lenin-owner-plugin-version"], "0.9.0")
 
+    def test_web_session_cookie_takes_precedence_without_bearer_header(self):
+        with (
+            patch.dict(
+                owner_client.os.environ,
+                {
+                    "LENIN_OWNER_PLATFORM_URL": "http://127.0.0.1:3847",
+                    "LENIN_OWNER_SESSION_COOKIE": "lenin_session=signed",
+                },
+                clear=False,
+            ),
+            patch.object(owner_client, "load_config", side_effect=self.config),
+            patch.object(owner_client.urllib.request, "urlopen", return_value=Response({"ok": True})) as urlopen,
+        ):
+            result = owner_client.request("/api/product/owner/capabilities")
+
+        self.assertEqual(result, {"ok": True})
+        request = urlopen.call_args.args[0]
+        self.assertEqual(request.headers["Cookie"], "lenin_session=signed")
+        self.assertNotIn("Authorization", request.headers)
+        self.assertEqual(request.full_url, "http://127.0.0.1:3847/api/product/owner/capabilities")
+
     def test_plain_mutation_is_not_retried(self):
         with (
             patch.object(owner_client, "load_config", side_effect=self.config),
