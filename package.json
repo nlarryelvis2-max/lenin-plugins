@@ -1,6 +1,6 @@
 {
   "name": "@lenin-ecosystem/client",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "type": "module",
   "description": "Public Lenin Client, Owner MCP and provider-neutral Lenin Core projection.",

@@ -1239,7 +1239,7 @@ def main() -> None:
                 result = {
                     "protocolVersion": "2024-11-05",
                     "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "lenin-owner", "version": "0.9.0"},
+                    "serverInfo": {"name": "lenin-owner", "version": "0.9.1"},
                 }
             elif method == "notifications/initialized":
                 continue

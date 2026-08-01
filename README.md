@@ -134,7 +134,7 @@ lenin-client
 | Поверхность | Версия |
 |---|---:|
 | `lenin-client` | 0.4.0 |
-| `lenin-owner` | 0.9.0 |
+| `lenin-owner` | 0.9.1 |
 | `lenin-core` | 0.1.5 |
 | `lenin-uplink` | 1.1.4 |
 | протокол | `lenin-uplink/1` |
